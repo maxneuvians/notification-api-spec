@@ -1,0 +1,13 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Go, PostgreSQL, Redis
+  We use conventional commits
+  Domain: Notifications API that sends email and SMS notifications to users.
+
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include a "Non-goals" section
+  tasks:
+    - Break tasks into chunks of max 2 hours
