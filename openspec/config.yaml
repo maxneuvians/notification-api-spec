@@ -3,6 +3,7 @@ schema: spec-driven
 context: |
   Tech stack: Go, PostgreSQL, Redis
   We use conventional commits
+  We need to ensure >90% test coverage for all new code
   Domain: Notifications API that sends email and SMS notifications to users.
 
 rules:
