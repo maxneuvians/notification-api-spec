@@ -326,6 +326,7 @@ Additional fields present when branding is set: `brand_colour`, `brand_text`, `b
 - Multi-provider SMS failover (toggle) is currently **disabled** (all toggle/switch tests are `pytest.mark.skip`). The system operates with a single active SMS path at any time.
 - SMS provider switching via `dao_switch_sms_provider_to_provider_with_identifier` is a no-op if the target is already current.
 - On any unhandled SMS send exception, `dao_toggle_sms_provider` is called to initiate failover. This is explicitly NOT called for non-provider exceptions (verified: `assert switch_provider_mock.called is False` for generic non-provider exceptions).
+- **⚠️ Skipped tests**: failover toggle/switch tests are marked `pytest.mark.skip` because only one SMS provider is active. Go must implement the full failover infrastructure and add tests once a second SMS provider is configured.
 
 ### Receipt / bounce / complaint processing flows
 

@@ -1168,6 +1168,7 @@
 
 **Create**
 - On creation, Salesforce `engagement_create` is called.
+  - **⚠️ No retry or idempotency**: all 4 Salesforce call points (`engagement_create`, `engagement_update`, `engagement_delete_contact_role`, and the archive/suspend close path) fire synchronously with no retry logic and are entirely mocked in tests. A Salesforce API failure will surface as an unhandled exception in the service layer. Go must decide on a retry / circuit-breaker policy for Salesforce calls before implementation.
 - `count_as_live` defaults to `True` for non-platform-admin users; `False` for platform admins.
 - Organisation auto-assigned from user's email domain; longest-matching domain wins.
 - NHS branding auto-assigned if email domain matches NHS pattern and NHS branding exists.

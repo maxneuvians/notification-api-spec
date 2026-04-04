@@ -312,6 +312,7 @@ Sub-entities that belong to a service include: permission flags, a safelist (whi
 - **Key filters/conditions**: `id = service_sms_sender_id`
 - **Returns**: `ServiceSmsSender`
 - **Notes**: If `is_default=True`, clears old default first. If `is_default=False` but the current record is the existing default, raises `Exception("You must have at least one SMS sender as the default")`. Sender string cannot be updated if the record has an `inbound_number_id` (inbound number senders are immutable). Decorated with `@transactional`.
+  - **⚠️ Exception syntax bug**: `raise Exception("...")` instead of `raise InvalidRequest("...", 400)` — produces a garbled error response (the exception message is a bare string, not a JSON body with a status code). Go must use the correct error pattern (`status 400` + JSON body).
 
 #### `update_existing_sms_sender_with_inbound_number(service_sms_sender, sms_sender, inbound_number_id)`
 - **Purpose**: Bind an inbound number to an existing SMS sender record when inbound SMS is configured.
@@ -381,6 +382,7 @@ Sub-entities that belong to a service include: permission flags, a safelist (whi
 - **Key filters/conditions**: N/A (operates on passed object)
 - **Returns**: `None`
 - **Notes**: Only updates fields that are provided (non-None). Sets `updated_by_id` and `updated_at = utcnow()`. Decorated with `@transactional @version_class(ServiceInboundApi)`.
+  - **⚠️ Truthiness bug**: uses `if url:` instead of `if url is not None:` — prevents clearing the URL/token to an empty string. Go must use `!= nil` / `is not None` semantics.
 
 #### `get_service_inbound_api(service_inbound_api_id, service_id)`
 - **Purpose**: Fetch a specific inbound API record by both its ID and service ID.
@@ -425,6 +427,7 @@ Sub-entities that belong to a service include: permission flags, a safelist (whi
 - **Key filters/conditions**: N/A (operates on passed object)
 - **Returns**: `None`
 - **Notes**: Only updates provided (non-None) fields. Sets `updated_by_id`, `updated_at = utcnow()`. Decorated with `@transactional @version_class(ServiceCallbackApi)`.
+  - **⚠️ Truthiness bug**: uses `if url:` instead of `if url is not None:` — prevents clearing the URL/token to an empty string (same issue as `reset_service_inbound_api`). Go must use `!= nil` / `is not None` semantics.
 
 #### `get_service_callback_api_with_service_id(service_id)`
 - **Purpose**: List all callback configurations for a service.

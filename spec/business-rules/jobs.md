@@ -82,7 +82,9 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ## Data Access Patterns
 
-### `dao_get_notification_outcomes_for_job_batch(service_id, job_ids)`
+### `jobs_dao.py`
+
+#### `dao_get_notification_outcomes_for_job_batch(service_id, job_ids)`
 - **Purpose**: Fetch per-status notification counts for multiple jobs in a single query, used in the list-jobs response.
 - **Query type**: SELECT with GROUP BY on (`job_id`, `status`); operates on the live `notifications` table only.
 - **Key filters**: `service_id == service_id`, `job_id IN job_ids`.
@@ -91,7 +93,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_notification_outcomes_for_job(service_id, job_id)`
+#### `dao_get_notification_outcomes_for_job(service_id, job_id)`
 - **Purpose**: Fetch per-status notification counts for a single job, used in the single-job GET response.
 - **Query type**: UNION of two GROUP-BY SELECTs: one on `notifications`, one on `notification_history`, grouped by `status`.
 - **Key filters**: `service_id == service_id`, `job_id == job_id` in both branches.
@@ -100,7 +102,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_job_by_service_id_and_job_id(service_id, job_id)`
+#### `dao_get_job_by_service_id_and_job_id(service_id, job_id)`
 - **Purpose**: Retrieve a single job scoped to a service, for user-facing reads.
 - **Query type**: SELECT with `filter_by(service_id, id)`.
 - **Returns**: `Job` or `None` (uses `.first()`).
@@ -108,7 +110,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_jobs_by_service_id(service_id, limit_days, page, page_size, statuses)`
+#### `dao_get_jobs_by_service_id(service_id, limit_days, page, page_size, statuses)`
 - **Purpose**: Paginated list of jobs for a service, used in the list-jobs endpoint.
 - **Query type**: SELECT with dynamic filter list + `paginate()`.
 - **Key filters**:
@@ -121,7 +123,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_job_by_id(job_id)`
+#### `dao_get_job_by_id(job_id)`
 - **Purpose**: Internal lookup by job UUID without service scoping.
 - **Query type**: SELECT with `filter_by(id)`.
 - **Returns**: `Job` (uses `.one()` — raises `NoResultFound` if missing).
@@ -129,7 +131,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_archive_jobs(jobs)`
+#### `dao_archive_jobs(jobs)`
 - **Purpose**: Soft-delete a collection of jobs by setting `archived = True`.
 - **Query type**: Iterated UPDATE (one `session.add()` per job) then a single `session.commit()`.
 - **Returns**: Nothing.
@@ -137,7 +139,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_in_progress_jobs()`
+#### `dao_get_in_progress_jobs()`
 - **Purpose**: Fetch all jobs currently being processed, used by cron/monitoring tasks.
 - **Query type**: SELECT filtered by `job_status == JOB_STATUS_IN_PROGRESS`.
 - **Returns**: List of `Job`.
@@ -145,7 +147,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_service_has_jobs(service_id)`
+#### `dao_service_has_jobs(service_id)`
 - **Purpose**: Efficient existence check — does this service have **any** job record?
 - **Query type**: `EXISTS` sub-select.
 - **Returns**: Boolean scalar.
@@ -153,7 +155,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_set_scheduled_jobs_to_pending()`
+#### `dao_set_scheduled_jobs_to_pending()`
 - **Purpose**: Atomically promote all past-due scheduled jobs to `pending` so they can be picked up by the job processor.
 - **Query type**: SELECT … FOR UPDATE, then batch UPDATE.
 - **Key filters**: `job_status == JOB_STATUS_SCHEDULED` AND `scheduled_for < utcnow()`.
@@ -163,7 +165,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_future_scheduled_job_by_id_and_service_id(job_id, service_id)`
+#### `dao_get_future_scheduled_job_by_id_and_service_id(job_id, service_id)`
 - **Purpose**: Retrieve a scheduled job that has not yet fired, for the cancel-scheduled-job endpoint.
 - **Query type**: SELECT with `one()`.
 - **Key filters**: `service_id`, `id`, `job_status == JOB_STATUS_SCHEDULED`, `scheduled_for > utcnow()`.
@@ -172,7 +174,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_create_job(job)`
+#### `dao_create_job(job)`
 - **Purpose**: Persist a newly built `Job` instance.
 - **Query type**: INSERT.
 - **Returns**: Nothing (mutates the passed object).
@@ -180,7 +182,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_update_job(job)`
+#### `dao_update_job(job)`
 - **Purpose**: Persist state changes to an existing `Job`.
 - **Query type**: UPDATE (via `session.add` + `session.commit`).
 - **Returns**: Nothing.
@@ -188,7 +190,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_get_jobs_older_than_data_retention(notification_types, limit)`
+#### `dao_get_jobs_older_than_data_retention(notification_types, limit)`
 - **Purpose**: Identify jobs eligible for archiving based on per-service data retention policies.
 - **Query type**: Two nested loops producing UNION of results:
   1. For each `ServiceDataRetention` row matching the given notification types: select jobs for that service where `COALESCE(scheduled_for, created_at) < (today − retention_days)`, `archived == False`.
@@ -198,7 +200,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `dao_cancel_letter_job(job)`
+#### `dao_cancel_letter_job(job)`
 - **Purpose**: Cancel all notifications in a letter job and mark the job cancelled, atomically.
 - **Query type**: Bulk UPDATE on `notifications` (set `status = cancelled`, `billable_units = 0`, `updated_at = utcnow()`), then UPDATE job.
 - **Returns**: Integer — number of notifications cancelled.
@@ -207,7 +209,7 @@ Additional terminal-ish statuses reachable from `pending` or `in progress` at th
 
 ---
 
-### `can_letter_job_be_cancelled(job)` (validation helper)
+#### `can_letter_job_be_cancelled(job)` (validation helper)
 - **Purpose**: Check whether a letter job's notifications are still within the cancellation window.
 - **Returns**: `(True, None)` on success; `(False, error_string)` on failure.
 - **Failure conditions**:

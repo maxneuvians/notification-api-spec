@@ -192,10 +192,20 @@ Router
 ├── /inbound-number                 → handler/inbound         (admin JWT)
 ├── /letter-branding                → handler/letter_branding (admin JWT)
 ├── /newsletter                     → handler/newsletter      (admin JWT)
+│   ├── POST /unconfirmed-subscriber
+│   ├── GET  /confirm/{subscriber_id}
+│   ├── GET  /unsubscribe/{subscriber_id}
+│   ├── POST /update-language/{subscriber_id}
+│   ├── GET  /send-latest/{subscriber_id}
+│   └── GET  /find-subscriber
 ├── /notifications                  → handler/notifications   (service auth)
 ├── /organisation/{id}/invite       → handler/invite          (admin JWT)
 ├── /organisations                  → handler/organisations   (admin JWT)
 ├── /platform-stats                 → handler/platform_stats  (admin JWT)
+│   ├── GET  /
+│   ├── GET  /usage-for-trial-services
+│   ├── GET  /usage-for-all-services
+│   └── GET  /send-method-stats-by-service
 ├── /provider-details               → handler/providers       (admin JWT)
 ├── /service                        → handler/services        (admin JWT)
 ├── /support                        → handler/support         (admin JWT)
@@ -303,7 +313,9 @@ sql:
 
 Query files are split one-per-domain under `db/queries/` (e.g. `db/queries/notifications.sql`, `db/queries/services.sql`). Generated output lands in `internal/repository/{domain}/` — one package per domain.
 
-For **encrypted columns** (`notifications._personalisation`, `service_callback_api.bearer_token`, `service_inbound_api.bearer_token`, `verify_codes._code`, `users._password`), sqlc generates the raw encrypted bytes. Encryption and decryption are called explicitly in the service layer using `pkg/crypto` — there are no automatic ORM hooks.
+For **encrypted columns** (`notifications._personalisation`, `inbound_sms._content`, `service_callback_api.bearer_token`, `service_inbound_api.bearer_token`, `verify_codes._code`, `users._password`), sqlc generates the raw encrypted bytes. Encryption and decryption are called explicitly in the service layer using `pkg/crypto` — there are no automatic ORM hooks.
+
+> **Note**: `inbound_sms._content` is the physical column `content` in the DB, encrypted via `signer_inbound_sms` in Python. The Go repository must decrypt on read and encrypt on write, same as the other encrypted columns.
 
 For **history tables** (`api_keys_history`, `services_history`, `templates_history`, etc.), the repository layer contains explicit `InsertXxxHistory(...)` functions. These are called from the service layer after every mutating operation on the parent table, replicating the SQLAlchemy event-hook behaviour.
 
@@ -946,14 +958,42 @@ Python used SQLAlchemy column type wrappers (`Encryption`) to transparently encr
 - After SELECT: `crypto.Decrypt(ciphertext, config.SecretKeys)` → use plaintext
 - Key rotation: `SecretKey` is a list; encryption always uses the first key; decryption tries all keys in order.
 
+> **⚠️ Validation gap**: `inbound_sms._content` (physical column: `content`) was missing from earlier encrypted-column lists. It must also go through `crypto.Decrypt`/`crypto.Encrypt` in the inbound-SMS repository functions.
+
 ### Read Replica Routing
 Python used `db.on_reader()` context manager for queries explicitly directed to the read replica. In Go this is achieved by injecting two `*sql.DB` instances (writer and reader) into the repository layer. Functions that must use the reader (e.g. `GetServiceByIDWithAPIKeys` called during request authentication) receive the reader `*sql.DB`; all writes and reads that require up-to-date data use the writer.
+
+**Guidance for Go repository design — use reader for:**
+- Request-time service/API-key lookup (`GetServiceByIDWithAPIKeys`, `GetAPIKeyBySecret`)
+- Read-only list/fetch endpoints where eventual consistency is acceptable (e.g. `ListTemplates`, `GetNotificationsByService`)
+- `ft_billing` / `ft_notification_status` fact-table queries (nightly-aggregated, no write path)
+- `annual_billing`, `annual_limits_data` reads during limit-check flows
+
+**Always use writer for:**
+- Any INSERT, UPDATE, or DELETE
+- Reads immediately following a write within the same request (e.g. fetching a row just inserted)
+- Auth-critical reads where stale cache would be a security risk (token verification, permission checks)
+- Rate-limit counter reads/writes (Redis preferred; DB fallback must use writer)
 
 ### Simulated Phone Numbers / Email Addresses
 Python had a list of hard-coded simulated addresses that skip actual delivery. In Go these are constants in `internal/service/notifications/simulate.go`. Notifications for simulated recipients are persisted to the DB but not enqueued to SQS delivery queues.
 
 ### Letter Features
 The Python codebase contains substantial letter-related code that is **either dead (PDF stubs) or not active in the Canadian deployment**. The initial Go rewrite should omit letter delivery (`create-letters-pdf`, DVLA pipeline, precompiled letter S3 flow) entirely, retaining only the stub endpoints required to return correct HTTP status codes for any clients that call them.
+
+**Letter stub endpoints — implement as 501 Not Implemented in Go:**
+
+| Method | Path | Handler decision |
+|---|---|---|
+| `GET` | `/service/{service_id}/letter-contact` | 501 stub |
+| `GET` | `/service/{service_id}/letter-contact/{letter_contact_id}` | 501 stub |
+| `POST` | `/service/{service_id}/letter-contact` | 501 stub |
+| `POST` | `/service/{service_id}/letter-contact/{letter_contact_id}` | 501 stub |
+| `POST` | `/service/{service_id}/letter-contact/{letter_contact_id}/archive` | 501 stub |
+| `POST` | `/service/{service_id}/send-pdf-letter` | 501 stub |
+| `POST` | `/letters/returned` | 501 stub |
+
+All 7 routes must be registered (so clients receive 501 rather than 404) but no business logic is required.
 
 ---
 

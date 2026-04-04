@@ -68,7 +68,7 @@ All tables in alphabetical order (two-column layout):
 - **Enum lookup tables**: Single-column `name` PK tables (`auth_type`, `branding_type`, `invite_status_type`, `job_status`, `key_types`, `notification_status_types`, `organisation_types`, `service_callback_type`, `service_permission_types`, `template_process_type`) with referencing columns declared as FKs.
 - **Soft-delete via `archived` / `expiry_date`**: `api_keys` (expiry_date), `jobs` (archived), `service_email_reply_to` (archived), `service_letter_contacts` (archived), `service_sms_senders` (archived), `templates` (archived).
 - **Versioned entities via composite `(id, version)` PKs**: `api_keys_history`, `provider_details_history`, `service_callback_api_history`, `service_inbound_api_history`, `services_history`, `templates_history`.
-- **Encrypted columns**: `_personalisation` on `notifications`, `bearer_token` on `service_callback_api` and `service_inbound_api`, `_code` on `verify_codes`, `_password` on `users`.
+- **Encrypted columns**: `_personalisation`, `to`, `normalised_to` on `notifications`; `_content` on `inbound_sms` (signer: `signer_inbound_sms`); `bearer_token` on `service_callback_api` and `service_inbound_api`; `_code` on `verify_codes`; `_password` on `users`. Column names prefixed with `_` are SQLAlchemy hybrid properties whose getter decrypts and setter encrypts transparently. `to` and `normalised_to` use the `SensitiveString` custom column type (see §Notifications).
 - **JSONB columns**: `compromised_key_info` (api_keys), `folder_permissions` (invited_users), `data` (login_events), `additional_information` (users).
 - **Native PostgreSQL ENUMs**: `notification_type` (email/sms/letter), `invited_users_status_types`, `permission_types`, `notification_feedback_types`, `notification_feedback_subtypes`, `verify_code_types`, `sms_sending_vehicle`, `template_type`, `recipient_type`.
 - **Denormalised fact tables**: `ft_billing` and `ft_notification_status` use wide composite PKs and carry no FK constraints; `monthly_notification_stats_summary` and `annual_limits_data` similarly.
@@ -106,6 +106,8 @@ All tables in alphabetical order (two-column layout):
 | `sms_sending_vehicle` | `short_code`, `long_code` |
 | `template_type` | `email`, `sms`, `letter` |
 | `recipient_type` | `mobile`, `email` |
+| `job_status_types` | `pending`, `in progress`, `finished`, `sending limits exceeded` — **4 values only**; the authoritative lookup table `job_status` has 9 values (adds `cancelled`, `ready to send`, `sent to dvla`, `error`, `scheduled`). The application code uses the FK lookup table, not this native enum. **Go must use the lookup table values, not this enum.** |
+| `notify_status_type` | Mirror of `notification_status_types` values — **dead code**. Defined in DDL (`CREATE TYPE`) but never referenced by application code or any FK constraint. Go implementation must ignore this type. |
 
 ---
 
@@ -185,7 +187,7 @@ All tables in alphabetical order (two-column layout):
 
 **Constraints**: UNIQUE (`secret`)
 
-**Notes**: Soft-deleted by setting `expiry_date`; `compromised_key_info` is JSONB. Versioned — changes are mirrored to `api_keys_history`.
+**Notes**: Soft-deleted by setting `expiry_date`; `compromised_key_info` is JSONB. Versioned — changes are mirrored to `api_keys_history`. The partial index `uix_service_to_key_name` enforces name-uniqueness only for **active** keys (`WHERE expiry_date IS NULL`), so a service may reuse a key name after the prior key is expired/revoked.
 
 ---
 
@@ -523,7 +525,7 @@ All tables in alphabetical order (two-column layout):
 |---|---|---|---|---|
 | id | uuid | NO | | PK |
 | service_id | uuid | NO | | FK → services.id |
-| content | varchar | NO | | Message body |
+| content (`_content`) | varchar | NO | | Message body — **encrypted at application layer** via `signer_inbound_sms`; accessed in Python as `_content` (hybrid property) |
 | notify_number | varchar | NO | | The Notify number the message was sent to |
 | user_number | varchar | NO | | Sender's phone number |
 | provider | varchar | NO | | |
@@ -915,7 +917,7 @@ All tables in alphabetical order (two-column layout):
 
 **Constraints**: CHECK `chk_notifications_postage_null` — for `letter` notifications postage must be `first` or `second`; for all others postage must be NULL.
 
-**Notes**: `_personalisation` is stored encrypted (leading underscore = SQLAlchemy hybrid property wrapping encryption). Differs from `notification_history` by also holding `to`, `normalised_to`, `reply_to_text`, `provider_response`, and `_personalisation`. Rows are archived to `notification_history` and deleted on a rolling schedule.
+**Notes**: Multiple columns are encrypted or PII-protected using the `SensitiveString` custom SQLAlchemy column type (`to`, `normalised_to`) or the hybrid-property encryption pattern (`_personalisation` via `signer_personalisation`). `SensitiveString` encrypts on write and decrypts on read transparently. Differs from `notification_history` by also holding `to`, `normalised_to`, `reply_to_text`, `provider_response`, and `_personalisation`. Rows are archived to `notification_history` and deleted on a rolling schedule.
 
 ---
 
@@ -940,7 +942,7 @@ All tables in alphabetical order (two-column layout):
 | request_to_go_live_notes | text | YES | — | |
 | agreement_signed_on_behalf_of_email_address | varchar(255) | YES | — | |
 | agreement_signed_on_behalf_of_name | varchar(255) | YES | — | |
-| default_branding_is_french | boolean | NO | false | |
+| default_branding_is_french | boolean | YES | false | nullable; DEFAULT false but no NOT NULL constraint |
 
 **Indexes**: `ix_organisation_name` UNIQUE btree(name)  
 **Foreign Keys**:
@@ -1503,7 +1505,7 @@ All tables in alphabetical order (two-column layout):
 **Foreign Keys**:
 - `suspended_by_id` → `users.id`
 
-**Notes**: History table pattern. PK is `(id, version)`. No FK constraints on other columns.
+**Notes**: History table pattern. PK is `(id, version)`. No FK constraints on other columns. **Schema discrepancy**: `services_history.prefix_sms` is nullable (`YES`), whereas `services.prefix_sms` carries a `NOT NULL` constraint. History rows pre-dating the constraint addition may contain null values; Go must treat null as `false` when reading history rows.
 
 ---
 

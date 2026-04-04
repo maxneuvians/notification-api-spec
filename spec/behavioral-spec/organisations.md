@@ -46,6 +46,7 @@
 - **Auth requirements**: Admin API key.
 - **Notable edge cases**:
   - A domain registered to a *different* organisation returns `200` but with that other organisation's `id`. The test for this case is marked `xfail` (expected assertion failure), meaning the endpoint does not differentiate — it returns whatever org owns the domain.
+    - **⚠️ Ambiguous semantics**: it is intentionally unspecified whether context (i.e. which org is making the request) matters for this lookup. The xfail test implies the current Python behaviour is to return the owning org regardless of the requesting org. Go must replicate this: `GET /organisations/by-domain?domain=X` always returns the single org that has registered domain X, with no access-scoping by the caller.
 
 ---
 
@@ -82,6 +83,7 @@
 - **Notable edge cases**:
   - Setting `agreement_signed: true` **without** `agreement_signed_by_id` does **not** trigger any email notification.
   - Setting `agreement_signed: true` **with** `agreement_signed_by_id` triggers MOU notification emails. Two notification templates are used depending on whether `agreement_signed_on_behalf_of_name` is set (signing on behalf of someone vs. direct signer). This test is currently `@pytest.mark.skip`.
+    - **⚠️ Skipped test**: the MOU email-trigger behavior is documented above but the test is skipped and unverified in Python. Go must implement the email dispatch and add test coverage.
   - `email_branding_id` and `letter_branding_id` can be set independently and do not interfere with each other.
 
 ---

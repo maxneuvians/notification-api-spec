@@ -483,6 +483,116 @@ while `created_at` timestamps are stored as UTC.
 
 ---
 
+#### `get_last_send_for_api_key(api_key_id)`
+
+- **Purpose**: Return the timestamp of the most recent notification sent via an API key.
+- **Query type**: SELECT from `api_keys` table (`last_used_timestamp`); no fallback to `notifications`.
+- **Key filters/conditions**: `api_key_id` match.
+- **Returns**: Non-empty list with a single row `[(last_used_timestamp,)]` if `last_used_timestamp` is set; empty list if `null`.
+- **Notes**: Does not query the notifications table; relies on the `api_keys.last_used_timestamp` column being kept up to date.
+
+---
+
+#### `get_api_key_ranked_by_notifications_created(n_days_back)`
+
+- **Purpose**: Rank API keys by total notification volume over the last `n_days_back` days (top 50).
+- **Query type**: Two-level subquery aggregation then JOIN to `api_keys` and `services`.
+- **Key filters/conditions**: `created_at >= (utcnow - n_days_back days)`; `api_key_id IS NOT NULL`; `key_type = KEY_TYPE_NORMAL`.
+- **Returns**: Rows of `(api_key_name, key_type, service_name, api_key_id, service_id, last_notification_created, email_notifications, sms_notifications, total_notifications)`, ordered by `total_notifications DESC`, limited to 50.
+
+---
+
+#### `fetch_notification_status_totals_for_all_services(start_date, end_date)`
+
+- **Purpose**: Cross-service notification status totals for a date range; used by platform stats endpoints.
+- **Query type**: SELECT from `ft_notification_status` aggregated by `(notification_type, status, key_type)`. If today falls within the range, adds a live UNION ALL from `notifications` for the current partial day.
+- **Key filters/conditions**: `bst_date` between `start_date` and `end_date`.
+- **Returns**: Rows of `(notification_type, status, key_type, count)` ordered by `notification_type`.
+
+---
+
+#### `fetch_stats_for_all_services_by_date_range(start_date, end_date, include_from_test_key=True)`
+
+- **Purpose**: Per-service, per-type, per-status notification counts for a date range; includes service metadata.
+- **Query type**: SELECT from `ft_notification_status` JOIN `services`; if today is in range, UNION ALL with live `notifications` for today.
+- **Key filters/conditions**: `bst_date` between `start_date` and `end_date`. `include_from_test_key=False` adds `key_type != TEST` filters to both branches.
+- **Returns**: Rows of `(service_id, name, restricted, research_mode, active, created_at, notification_type, status, count)` ordered by `(name, notification_type, status)`.
+
+---
+
+#### `fetch_notification_statuses_for_job(job_id)`
+
+- **Purpose**: Per-status notification counts for a single job from the fact table.
+- **Query type**: SELECT from `ft_notification_status` grouped by `notification_status`.
+- **Key filters/conditions**: `job_id` match.
+- **Returns**: Rows of `(status, count)`.
+
+---
+
+#### `fetch_notification_statuses_for_job_batch(service_id, job_ids)`
+
+- **Purpose**: Per-status notification counts for multiple jobs from the fact table (used for old job-list stats).
+- **Query type**: SELECT from `ft_notification_status` grouped by `(job_id, notification_status)`.
+- **Key filters/conditions**: `service_id` + `job_id IN job_ids`.
+- **Returns**: Rows of `(job_id, status, count)`.
+- **Notes**: Counterpart to `dao_get_notification_outcomes_for_job_batch` which reads from the live `notifications` table. This function is used for jobs older than ~3 days.
+
+---
+
+#### `fetch_monthly_template_usage_for_service(start_date, end_date, service_id)`
+
+- **Purpose**: Monthly template usage counts for a service, used by the "monthly statistics" admin view.
+- **Query type**: SELECT from `ft_notification_status` JOIN `templates`; if today is in range, UNION ALL with live `notifications`.
+- **Key filters/conditions**: `service_id`; `bst_date` range; `key_type != TEST`; `notification_status != CANCELLED`.
+- **Returns**: Rows of `(template_id, name, template_type, is_precompiled_letter, month, year, count)` ordered by `(year, month, name)`.
+
+---
+
+#### `fetch_monthly_notification_statuses_per_service(start_date, end_date)`
+
+- **Purpose**: Cross-service monthly breakdown by status category (sending, delivered, failures) for the "live service report".
+- **Query type**: SELECT from `ft_notification_status` JOIN `services` with conditional SUM aggregations.
+- **Key filters/conditions**: `bst_date` range; `notification_status != CREATED`; `Service.active`; `key_type != TEST`; `research_mode == False`; `restricted == False`.
+- **Returns**: Rows of `(date_created, service_id, service_name, notification_type, count_sending, count_delivered, count_technical_failure, count_temporary_failure, count_permanent_failure, count_sent)` ordered by `(date_created, service_id, notification_type)`.
+
+---
+
+#### `fetch_quarter_data(start_date, end_date, service_ids)`
+
+- **Purpose**: Total notification counts per service per type within a quarter window.
+- **Query type**: SELECT from `ft_notification_status` grouped by `(service_id, notification_type)`.
+- **Key filters/conditions**: `service_id IN service_ids`; `bst_date` between `start_date` and `end_date`.
+- **Returns**: Rows of `(service_id, notification_type, notification_count)`.
+
+---
+
+#### `fetch_notification_status_totals_for_service_by_fiscal_year(service_id, fiscal_year, notification_type=None)`
+
+- **Purpose**: Total notification count for a service over a full fiscal year.
+- **Query type**: SELECT SUM from `ft_notification_status` for fiscal year date range.
+- **Key filters/conditions**: `service_id`; `bst_date` in `[start_date, end_date]` from `get_fiscal_dates(fiscal_year)`; optional `notification_type` filter.
+- **Returns**: Integer count (0 if no rows).
+
+---
+
+#### `fetch_billable_units_totals_for_service_by_fiscal_year(service_id, fiscal_year, notification_type=None)`
+
+- **Purpose**: Total billable units for a service over a full fiscal year (SMS-focused).
+- **Query type**: SELECT SUM(`billable_units`) from `ft_notification_status` for fiscal year date range.
+- **Key filters/conditions**: Same as `fetch_notification_status_totals_for_service_by_fiscal_year`.
+- **Returns**: Integer billable unit total (0 if no rows).
+
+---
+
+#### `get_total_sent_notifications_for_day_and_type(day, notification_type)`
+
+- **Purpose**: Total notification count for a given day and type (non-test keys only).
+- **Query type**: SELECT SUM from `ft_notification_status`.
+- **Key filters/conditions**: `notification_type`; `key_type != TEST`; `bst_date == day`.
+- **Returns**: Integer count (0 if no rows / `null` sum).
+
+---
+
 ### `provider_rates_dao.py`
 
 #### `create_provider_rates(provider_identifier, valid_from, rate)`

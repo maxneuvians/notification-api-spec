@@ -2,9 +2,10 @@
 
 ## Overview
 
-- **Total registered task count**: 53 tasks across 8 modules (5 letter PDF stubs, 3 research-mode helpers, 45 production tasks)
+- **Total registered task count**: 51 tasks across 8 modules (5 letter PDF stubs, 1 research-mode Celery task, 45 production tasks)
+  - **Note**: `research_mode_tasks.py` contains only 1 registered Celery task (`create-fake-letter-response-file`); the other helpers in that module (`send_sms_response`, `send_email_response`, `aws_sns_callback`, `aws_pinpoint_callback`) are plain Python functions, not `@notify_celery.task` tasks.
 - **Queue count**: 22 named queues (see Queues table)
-- **Beat scheduler**: 31 entries in `CELERYBEAT_SCHEDULE`; processes run in a dedicated `celery beat` pod
+- **Beat scheduler**: 32 entries in `CELERYBEAT_SCHEDULE`; processes run in a dedicated `celery beat` pod
 - **Broker**: AWS SQS (`sqs://`), prefixed with `NOTIFICATION_QUEUE_PREFIX`, visibility timeout 310 s, polling interval 1 s
 - **Tracing**: AWS X-Ray (default) or OpenTelemetry (when `FF_ENABLE_OTEL=true`); custom `NotifyTask` base class wraps every task in a Flask app context and records wall-clock time
 - **Error classification**: `app/celery/error_registry.py` walks the exception chain on every retry/failure and emits a structured `CELERY_KNOWN_ERROR::*` or `CELERY_UNKNOWN_ERROR` log token for CloudWatch metric filters
@@ -35,6 +36,7 @@
 - **Every 66 min** (interval): `delete-invitations`
 - **Nightly** (UTC, ~EST midnight to 5 AM window): 10 maintenance/reporting jobs
 - **Quarterly** (4 × 2 = 8 entries): annual-limit data insertion + quarterly usage email
+  - **Note**: `send-quarterly-email-q4` is present in this spec (see Beat Schedule table) but is **currently absent from the Python `CELERYBEAT_SCHEDULE`** — known bug; Go implementation must include it.
 
 ---
 
@@ -65,7 +67,7 @@
 | `service-callbacks-retry` | Retry queue for failed service callbacks | `run_celery.sh` |
 | `delivery-receipts` | Inbound SNS/SES/Pinpoint receipt processing | `run_celery_delivery.sh` |
 | `retry-tasks` | General retry queue for transient failures | `run_celery.sh` |
-| `notifiy-cache-tasks` | Batch-saving Redis cache operations (defined but not in `all_queues()`) | — |
+| `notifiy-cache-tasks` | Batch-saving Redis cache operations (defined but not in `all_queues()`) — **⚠️ Typo**: name is misspelled (`notifiy` instead of `notify`) in `QueueNames` enum; defined but not routed in production | — |
 
 ---
 
@@ -920,8 +922,9 @@ All beat tasks are dispatched using Celery beat's single-process scheduler. The 
 | `send-quarterly-email-q1` | `send_quarter_email` | reporting_tasks | Jul 2 23:00 UTC | periodic-tasks | Send quarterly usage email Q1 |
 | `send-quarterly-email-q2` | `send_quarter_email` | reporting_tasks | Oct 2 23:00 UTC | periodic-tasks | Send quarterly usage email Q2 |
 | `send-quarterly-email-q3` | `send_quarter_email` | reporting_tasks | Jan 3 23:00 UTC | periodic-tasks | Send quarterly usage email Q3 |
+| `send-quarterly-email-q4` | `send_quarter_email` | reporting_tasks | Apr 2 23:00 UTC | periodic-tasks | Send quarterly usage email Q4 — **⚠️ missing from Python `CELERYBEAT_SCHEDULE`; bug** |
 
-> **Note**: The Q4 quarterly email (April) is missing from `CELERYBEAT_SCHEDULE`; the corresponding `insert-quarter-data-for-annual-limits-q4` entry IS present, but the `send-quarterly-email-q4` entry is absent — this appears to be a bug.
+> **Note**: The Q4 quarterly email entry above is specified here as it logically completes the quarterly cycle, but is currently **absent from the Python `CELERYBEAT_SCHEDULE`**. The corresponding `insert-quarter-data-for-annual-limits-q4` entry IS present. Go must add `crontab(minute=0, hour=23, day_of_month=2, month_of_year=4)`.
 
 ---
 

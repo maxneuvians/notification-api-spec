@@ -50,6 +50,7 @@ and system-wide cross-cutting concerns:
 - **Key filters/conditions** — `created_at >= midnight(start_date) AND created_at < midnight(end_date + 1 day)`, both expressed as UTC.
 - **Returns** — Integer count.
 - **Notes** — Dates are converted from local timezone to UTC midnight via `get_local_timezone_midnight_in_utc`; `end_date` is made exclusive by adding one day.
+  - **⚠️ Timezone dependency**: the boundary is EST/EDT midnight (America/Toronto, or the value of the `TIMEZONE` env var), not UTC midnight. A complaint created at 23:30 UTC on a given date will fall on a different calendar day depending on the active DST offset. Go must replicate the same `America/Toronto` timezone conversion when computing the `start_date`/`end_date` boundaries for this query.
 
 ---
 
@@ -93,6 +94,7 @@ and system-wide cross-cutting concerns:
 - **Key filters/conditions** — None.
 - **Returns** — None.
 - **Notes** — Does **not** use the `@transactional` decorator; commits directly. This means there is no automatic rollback on failure.
+  - **⚠️ No transaction safety**: if the INSERT succeeds but the calling function’s surrounding transaction is later rolled back, the event row will still be committed and cannot be undone (orphan audit row). Conversely, if the DB commit inside `dao_create_event` fails, the caller receives no exception (the event is silently lost). Go must wrap event inserts in the caller’s transaction rather than issuing a separate commit.
 
 ---
 

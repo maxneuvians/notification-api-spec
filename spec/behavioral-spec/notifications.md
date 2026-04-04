@@ -43,7 +43,7 @@
 - Required personalisation fields must be supplied; missing → 400 `{"template": ["Missing personalisation: <Name>"]}`.
 - Extra personalisation keys beyond what the template needs are silently ignored.
 - Rendered SMS body must be ≤ SMS_CHAR_COUNT_LIMIT (612) characters; exceeded → 400 `"Content has a character count greater than the limit of 612"`.
-- Service must have SMS permission; if not → 400 `"Cannot send text messages"`.
+- Service must have SMS permission; if not → 400 `"Service is not allowed to send text messages"`.
 
 **Error cases**
 
@@ -56,7 +56,7 @@
 | Archived template | 400 | `"Template {id} has been deleted"` |
 | Missing personalisation | 400 | `{"template": ["Missing personalisation: <Name>"]}` |
 | SMS content too long | 400 | `"Content has a character count greater than the limit of 612"` |
-| Service lacks SMS permission | 400 | `"Cannot send text messages"` |
+| Service lacks SMS permission | 400 | `"Service is not allowed to send text messages"` |
 | Rate limit exceeded | 429 | `"Exceeded rate limit for key type {TYPE} of {N} requests per {INTERVAL} seconds"` |
 | Annual limit exceeded | 429 | `"Exceeded annual SMS sending limit of {N} messages"` |
 | Daily limit exceeded (live service) | 429 | (generic over-limit error) |

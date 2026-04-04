@@ -439,6 +439,28 @@ Surface: **admin** (Airtable-backed newsletter subscription management)
 - **Response 200**: `{"result":"success","subscriber":{...}}`
 - **Response 404**: subscriber not found
 
+#### POST /newsletter/update-language/{subscriber_id}
+- **Auth**: admin JWT
+- **Path params**: `subscriber_id` (Airtable record ID string)
+- **Request body**: `{"language": str (required)}`
+- **Response 200**: `{"result":"success","message":"Language updated successfully","subscriber":{...}}`
+- **Response 400**: language missing or Airtable save failure
+- **Response 404**: subscriber not found
+
+#### GET /newsletter/send-latest/{subscriber_id}
+- **Auth**: admin JWT
+- **Path params**: `subscriber_id` (Airtable record ID string)
+- **Response 200**: `{"result":"success","subscriber":{...}}` — triggers sending latest newsletter template to subscriber
+- **Response 400**: subscriber status is not `SUBSCRIBED`
+- **Response 404**: subscriber not found or no current newsletter templates in Airtable
+
+#### GET /newsletter/find-subscriber
+- **Auth**: admin JWT
+- **Query params**: `subscriber_id` (Airtable record ID, optional) OR `email` (string, optional) — at least one required
+- **Response 200**: `{"result":"success","subscriber":{...}}`
+- **Response 400**: neither `subscriber_id` nor `email` provided
+- **Response 404**: subscriber not found
+
 ---
 
 ### Notifications — v1 (blueprint: `notifications`, prefix: *(none)*, auth: `requires_auth`)
@@ -565,6 +587,12 @@ Surface: **admin**
 - **Query params**: `start_date` (date YYYY-MM-DD, required), `end_date` (date YYYY-MM-DD, required) — must be within same financial year
 - **Response 200**: combined SMS/letter cost and usage data per service
 - **Response 400**: invalid date format, end < start, or dates span two financial years
+
+#### GET /platform-stats/send-method-stats-by-service
+- **Auth**: admin JWT
+- **Query params**: `start_date` (date YYYY-MM-DD, required), `end_date` (date YYYY-MM-DD, required)
+- **Response 200**: `[{"service_id", "service_name", "api_count", "admin_count", "total_count"}]` — breakdown of notification-send method (API vs admin UI) per service for the date range
+- **Notes**: Queries `send_method_stats_by_service` DAO function on `notifications`. No financial-year boundary constraint (unlike `usage-for-all-services`).
 
 ---
 
@@ -871,7 +899,7 @@ Surface: **admin**
 #### POST /service/{service_id}/letter-contact/{letter_contact_id}
 #### POST /service/{service_id}/letter-contact/{letter_contact_id}/archive
 - **Auth**: admin JWT
-- **Notes**: All **unimplemented stubs** — `pass`. Return implicit empty responses.
+- **Notes**: All **unimplemented stubs** — `pass`. Return implicit empty responses. Go must implement stub handlers returning **501 Not Implemented** for all five routes.
 
 #### POST /service/{service_id}/sms-sender
 - **Auth**: admin JWT

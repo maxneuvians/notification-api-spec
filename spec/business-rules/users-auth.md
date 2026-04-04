@@ -95,6 +95,7 @@ Source files analysed:
 - **Purpose:** Fetch a single user by UUID or all users.
 - **Query type:** SELECT `users` WHERE `id = user_id` (`.one()`), or SELECT all if no id.
 - **Returns:** `User` or `list[User]`.
+- **Notes:** **⚠️ Security hazard**: if `user_id=None` is passed (e.g. from an unset variable), the function returns **all users in the database** instead of raising an error. Go must guard: reject nil/zero-value UUID inputs before calling the repository function.
 
 #### `get_user_by_email(email)`
 - **Purpose:** Case-insensitive lookup by email address.
@@ -447,6 +448,8 @@ Source files analysed:
 | `Bearer` | `jwt` | Cache-clear | `CACHE_CLEAR_CLIENT_SECRET` |
 | `Bearer` | `jwt` | Cypress (staging) | `CYPRESS_AUTH_CLIENT_SECRET` |
 | `ApiKey-v1` | `api_key_v1` | External service clients (alternative to JWT) | Raw API key validated by format + DB lookup |
+
+> **Undocumented auth type constants** (`cache_clear_v1`, `cypress_v1`): These are the string constants returned by `get_auth_token()` for the cache-clear and Cypress schemes. They are not exposed in `api-surface.md`’s auth table header row (which lists only JWT + ApiKey-v1) but are valid values in the authentication layer. `cache_clear_v1` is restricted to `/cache-clear` routes; `cypress_v1` is restricted to `/cypress` routes and additionally checks `NOTIFY_ENVIRONMENT != "production"` at request time.
 
 JWT tokens use HS256; the clock tolerance for expiry is 30 seconds. Tokens with unsupported
 algorithms are logged and silently skipped (not rejected with an error) so that other keys in the

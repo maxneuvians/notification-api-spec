@@ -52,7 +52,7 @@ Government service team's code
 | File | Contents |
 |---|---|
 | [out.sql](out.sql) | Raw `pg_dump --schema-only` of the fully migrated database. Ground truth for all table structures. 68 tables. |
-| [test-manifest.txt](test-manifest.txt) | Complete list of every test file used as source for the behavioral spec. Used for completeness verification. |
+| `test-manifest.txt` | Complete list of every test file used as source for the behavioral spec. Used for completeness verification. **⚠️ File does not exist on disk** — reference only; was not generated during spec authoring. |
 
 ### Layer 1 — Data Model
 
@@ -71,16 +71,6 @@ Key patterns to know before reading:
 | File | Contents |
 |---|---|
 | [api-surface.md](api-surface.md) | All ~210 endpoints across 36 blueprints: method, full path, auth scheme, request schema reference, response shape, HTTP status codes. Divided into admin routes (~195) and public v2 routes (~15). |
-
-Also see the existing partial OpenAPI specs (v2 public API only):
-- [../openapi/v2-notifications-api-en.yaml](../openapi/v2-notifications-api-en.yaml)
-- [../openapi/v2-notifications-api-fr.yaml](../openapi/v2-notifications-api-fr.yaml)
-
-Partially produced OpenAPI YAML fragments (in progress, not merged):
-- [openapi-part1.yaml](openapi-part1.yaml) — v2 notifications endpoints
-- [openapi-part2b.yaml](openapi-part2b.yaml) — admin service/template routes
-- [openapi-part3.yaml](openapi-part3.yaml) — remaining admin routes
-- [openapi-admin-notifications-billing.yaml](openapi-admin-notifications-billing.yaml) — admin notifications + billing routes
 
 ### Layer 3 — Async Tasks
 
@@ -109,7 +99,7 @@ Per-domain documents in `business-rules/`. Each file covers: data access pattern
 
 ### Layer 5 — Behavioral Spec
 
-Per-domain documents in `behavioral-spec/`. Derived from the 203 test files listed in `test-manifest.txt`. Each file contains: per-endpoint happy-path contracts (request shape, response shape, status code), validation rules with exact error messages, and edge cases.
+Per-domain documents in `behavioral-spec/`. Each file contains: per-endpoint happy-path contracts (request shape, response shape, status code), validation rules with exact error messages, and edge cases.
 
 | File | Source tests |
 |---|---|

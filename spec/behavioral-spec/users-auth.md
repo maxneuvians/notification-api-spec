@@ -243,6 +243,7 @@
   - Live service: sends ticket; no Salesforce update.
   - `go_live_request` with `service_id`: fetches service, sends ticket, calls `salesforce_client.engagement_update` with `ENGAGEMENT_STAGE_ACTIVATION` and the `main_use_case` as description. `department_org_name` populated from `organisation_notes` (falls back to `"Unknown"`).
   - Province/territory service (`organisation_type = "province_or_territory"`) when `FF_PT_SERVICE_SKIP_FRESHDESK=True`: returns 201 (not 204); calls `Freshdesk.email_freshdesk_ticket_pt_service()` instead of `send_ticket()`; `send_ticket()` not called.
+    - **⚠️ No test coverage**: this branch is specified above but has no automated test in the Python test suite. Go must implement the 201 response and the `email_freshdesk_ticket_pt_service()` call path, and add coverage when writing Go tests.
   - Central (non-PT) service when `FF_PT_SERVICE_SKIP_FRESHDESK=True`: still calls `send_ticket()`; returns 204.
 - **Auth requirements**: Admin JWT.
 

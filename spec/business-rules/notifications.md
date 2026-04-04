@@ -16,7 +16,9 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ## Data Access Patterns
 
-### `dao_get_last_template_usage(template_id, template_type, service_id)`
+### `notifications_dao.py`
+
+#### `dao_get_last_template_usage(template_id, template_type, service_id)`
 - **Purpose**: Return the most recently created notification that used a given template (used to show "last used" in the admin UI).
 - **Query type**: SELECT
 - **Key filters/conditions**:
@@ -30,7 +32,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_create_notification(notification)`
+#### `dao_create_notification(notification)`
 - **Purpose**: Insert a new notification row with guaranteed `id` (UUIDv4) and default status.
 - **Query type**: INSERT
 - **Key filters/conditions**: N/A
@@ -40,7 +42,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `bulk_insert_notifications(notifications)`
+#### `bulk_insert_notifications(notifications)`
 - **Purpose**: Insert or update a list of `Notification` objects in one batch.
 - **Query type**: INSERT (bulk)
 - **Key filters/conditions**: N/A
@@ -50,7 +52,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `update_notification_status_by_id(notification_id, status, sent_by=None, feedback_reason=None)`
+#### `update_notification_status_by_id(notification_id, status, sent_by=None, feedback_reason=None)`
 - **Purpose**: Update a notification's delivery status by its primary key, used when a delivery receipt is received.
 - **Query type**: SELECT FOR UPDATE → UPDATE
 - **Key filters/conditions**:
@@ -63,7 +65,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `update_notification_status_by_reference(reference, status)`
+#### `update_notification_status_by_reference(reference, status)`
 - **Purpose**: Update the status of a letter or email notification identified by its provider reference string.
 - **Query type**: SELECT → UPDATE
 - **Key filters/conditions**:
@@ -75,7 +77,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_update_notification(notification)`
+#### `dao_update_notification(notification)`
 - **Purpose**: Mark an already-loaded notification as updated (sets `updated_at = utcnow()`) then flushes to the DB.
 - **Query type**: UPDATE
 - **Returns**: `None`
@@ -84,7 +86,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_update_notifications_by_reference(references, update_dict)`
+#### `dao_update_notifications_by_reference(references, update_dict)`
 - **Purpose**: Batch-update fields (via dict) on multiple notifications identified by their reference column. Falls back to `NotificationHistory` if the live table count is less than the number of references supplied.
 - **Query type**: UPDATE (bulk)
 - **Returns**: Tuple `(updated_count, updated_history_count)`
@@ -93,7 +95,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `_update_notification_statuses(updates)` / `update_notification_statuses(notifications)`
+#### `update_notification_statuses(notifications)` / `_update_notification_statuses(updates)`
 - **Purpose**: Apply a prepared list of status + bounce-response mutations atomically.
 - **Query type**: UPDATE (bulk)
 - **Returns**: `None`
@@ -102,7 +104,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `get_notification_for_job(service_id, job_id, notification_id)`
+#### `get_notification_for_job(service_id, job_id, notification_id)`
 - **Purpose**: Fetch a single notification scoped to a specific job (used by the admin UI).
 - **Query type**: SELECT ONE
 - **Key filters/conditions**: `service_id`, `job_id`, `id` — will raise `NoResultFound` if not matched.
@@ -111,7 +113,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `get_notifications_for_job(service_id, job_id, filter_dict=None, page=1, page_size=None)`
+#### `get_notifications_for_job(service_id, job_id, filter_dict=None, page=1, page_size=None)`
 - **Purpose**: Return paginated notifications for a job, in row-order.
 - **Query type**: SELECT (paginated)
 - **Key filters/conditions**: `service_id`, `job_id`; optional status / type filters via `_filter_query`
@@ -121,14 +123,14 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `get_notification_count_for_job(service_id, job_id)`
+#### `get_notification_count_for_job(service_id, job_id)`
 - **Purpose**: Count rows for a job (used for progress indicators).
 - **Query type**: COUNT
 - **Returns**: `int`
 
 ---
 
-### `get_notification_with_personalisation(service_id, notification_id, key_type)`
+#### `get_notification_with_personalisation(service_id, notification_id, key_type)`
 - **Purpose**: Load a notification and eagerly join its template (used when rendering or returning full notification data).
 - **Query type**: SELECT ONE
 - **Key filters/conditions**: `service_id`, `id`, optional `key_type`
@@ -137,21 +139,21 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `get_notification_by_id(notification_id, service_id=None, _raise=False)`
+#### `get_notification_by_id(notification_id, service_id=None, _raise=False)`
 - **Purpose**: Simple lookup by primary key, optionally scoped to a service.
 - **Query type**: SELECT (on reader replica via `db.on_reader()`)
 - **Returns**: `Notification` or `None`; raises if `_raise=True` and no row found.
 
 ---
 
-### `get_notifications(filter_dict=None)`
+#### `get_notifications(filter_dict=None)`
 - **Purpose**: Unscoped notification query with optional status/type filtering (used internally).
 - **Query type**: SELECT
 - **Returns**: SQLAlchemy query object (not yet executed)
 
 ---
 
-### `get_notifications_for_service(service_id, ...)`
+#### `get_notifications_for_service(service_id, ...)`
 - **Purpose**: Primary listing query for a service's notification history; powers all admin/API list endpoints.
 - **Query type**: SELECT (paginated)
 - **Key filters/conditions**:
@@ -172,7 +174,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `delete_notifications_older_than_retention_by_type(notification_type, qry_limit=10000)`
+#### `delete_notifications_older_than_retention_by_type(notification_type, qry_limit=10000)`
 - **Purpose**: Age-out live notification rows for a given type, respecting per-service retention policies.
 - **Query type**: SELECT (retention config), INSERT-ON-CONFLICT (archive), DELETE (batched)
 - **Key filters/conditions**: Reads `ServiceDataRetention` per type; applies per-service retention days; remaining services get the global 7-day default.
@@ -185,7 +187,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `insert_update_notification_history(notification_type, date_to_delete_from, service_id)`
+#### `insert_update_notification_history(notification_type, date_to_delete_from, service_id)`
 - **Purpose**: Copy notifications that are about to be purged into the long-term `notification_history` table.
 - **Query type**: INSERT … FROM SELECT … ON CONFLICT DO UPDATE
 - **Key filters/conditions**: `notification_type`, `service_id`, `created_at < date_to_delete_from`, `key_type != 'test'`
@@ -194,14 +196,14 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_delete_notifications_by_id(notification_id)`
+#### `dao_delete_notifications_by_id(notification_id)`
 - **Purpose**: Hard-delete a single notification by ID (used by tests and admin tools).
 - **Query type**: DELETE
 - **Notes**: `@transactional`; no history archival.
 
 ---
 
-### `dao_timeout_notifications(timeout_period_in_seconds)`
+#### `dao_timeout_notifications(timeout_period_in_seconds)`
 - **Purpose**: Mark stale undelivered notifications as timed out; runs as a periodic Celery beat task.
 - **Query type**: SELECT → UPDATE (two passes)
 - **Key filters/conditions**:
@@ -214,7 +216,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `is_delivery_slow_for_provider(created_at, provider, threshold, delivery_time)`
+#### `is_delivery_slow_for_provider(created_at, provider, threshold, delivery_time)`
 - **Purpose**: Determine whether a provider is experiencing slow delivery (used for automatic provider failover logic).
 - **Query type**: SELECT (aggregate)
 - **Key filters/conditions**: `created_at >= ?`, `sent_at IS NOT NULL`, `status IN (delivered, pending, sending)`, `sent_by = provider`, `key_type != 'test'`
@@ -223,7 +225,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_get_notifications_by_to_field(service_id, search_term, notification_type=None, statuses=None)`
+#### `dao_get_notifications_by_to_field(service_id, search_term, notification_type=None, statuses=None)`
 - **Purpose**: Recipient-based notification search (admin "search by recipient" feature).
 - **Query type**: SELECT
 - **Key filters/conditions**:
@@ -242,21 +244,21 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_get_notification_by_reference(reference)`
+#### `dao_get_notification_by_reference(reference)`
 - **Purpose**: Exact-match lookup on the `reference` column (read replica).
 - **Query type**: SELECT ONE
 - **Returns**: `Notification` (raises `NoResultFound` if absent)
 
 ---
 
-### `dao_get_notification_history_by_reference(reference)`
+#### `dao_get_notification_history_by_reference(reference)`
 - **Purpose**: Reference lookup that checks the live table first, then falls back to history (test/research-mode notifications are never in history).
 - **Query type**: SELECT ONE × 2
 - **Returns**: `Notification` or `NotificationHistory`
 
 ---
 
-### `dao_get_notifications_by_references(references)`
+#### `dao_get_notifications_by_references(references)`
 - **Purpose**: Bulk reference lookup.
 - **Query type**: SELECT (IN list)
 - **Returns**: List of `Notification`
@@ -264,14 +266,14 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_created_scheduled_notification(scheduled_notification)`
+#### `dao_created_scheduled_notification(scheduled_notification)`
 - **Purpose**: Persist a new `ScheduledNotification` row.
 - **Query type**: INSERT
 - **Notes**: Committed immediately (`db.session.commit()`).
 
 ---
 
-### `dao_get_scheduled_notifications()`
+#### `dao_get_scheduled_notifications()`
 - **Purpose**: Fetch all scheduled sends whose execution time has arrived.
 - **Query type**: SELECT (JOIN `scheduled_notifications`)
 - **Key filters/conditions**: `scheduled_for < utcnow()` AND `pending = True`
@@ -279,14 +281,14 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `set_scheduled_notification_to_processed(notification_id)`
+#### `set_scheduled_notification_to_processed(notification_id)`
 - **Purpose**: Mark a processed scheduled notification so it is not re-processed.
 - **Query type**: UPDATE `scheduled_notifications.pending = False`
 - **Notes**: Committed immediately.
 
 ---
 
-### `dao_get_total_notifications_sent_per_day_for_performance_platform(start_date, end_date)`
+#### `dao_get_total_notifications_sent_per_day_for_performance_platform(start_date, end_date)`
 - **Purpose**: Performance Platform reporting — total notifications sent and how many arrived within 10 seconds.
 - **Query type**: SELECT (aggregate)
 - **Key filters/conditions**: `api_key_id IS NOT NULL`, `key_type != 'test'`, `notification_type != 'letter'`, `created_at` between `start_date` and `end_date`
@@ -294,19 +296,19 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `get_latest_sent_notification_for_job(job_id)`
+#### `get_latest_sent_notification_for_job(job_id)`
 - **Purpose**: Retrieve the notification most recently updated in a job (used to produce job completion timestamps).
 - **Query type**: SELECT ORDER BY `updated_at DESC` LIMIT 1
 
 ---
 
-### `dao_get_last_notification_added_for_job_id(job_id)`
+#### `dao_get_last_notification_added_for_job_id(job_id)`
 - **Purpose**: Retrieve the last notification row added to a job (highest `job_row_number`).
 - **Query type**: SELECT ORDER BY `job_row_number DESC` LIMIT 1
 
 ---
 
-### `notifications_not_yet_sent(should_be_sending_after_seconds, notification_type)`
+#### `notifications_not_yet_sent(should_be_sending_after_seconds, notification_type)`
 - **Purpose**: Find notifications that have been in `created` status longer than the expected queuing time (monitoring / alerting).
 - **Query type**: SELECT
 - **Key filters/conditions**: `created_at <= (utcnow - threshold)`, `notification_type = ?`, `status = 'created'`
@@ -314,7 +316,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_old_letters_with_created_status()`
+#### `dao_old_letters_with_created_status()`
 - **Purpose**: Identify letters that were never picked up for printing (past the 5:30 PM BST same-day cutoff of the previous day).
 - **Query type**: SELECT
 - **Key filters/conditions**: `notification_type = 'letter'`, `status = 'created'`, `updated_at < yesterday 17:30 BST → UTC`
@@ -322,7 +324,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `dao_precompiled_letters_still_pending_virus_check()`
+#### `dao_precompiled_letters_still_pending_virus_check()`
 - **Purpose**: Find precompiled letters stuck in `pending-virus-check` for more than 90 minutes (monitoring).
 - **Query type**: SELECT
 - **Key filters/conditions**: `status = 'pending-virus-check'`, `created_at < (utcnow - 90 min)`
@@ -330,7 +332,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `send_method_stats_by_service(start_time, end_time)`
+#### `send_method_stats_by_service(start_time, end_time)`
 - **Purpose**: Produce per-service, per-type, per-send-method delivery counts (used by reporting).
 - **Query type**: SELECT (aggregate, JOIN `services`, `organisations`)
 - **Key filters/conditions**: `status IN ('delivered', 'sent')`, `key_type != 'test'`, `created_at` between `start_time` and `end_time`
@@ -339,7 +341,7 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `overall_bounce_rate_for_day(min_emails_sent=1000, default_time=utcnow())`
+#### `overall_bounce_rate_for_day(min_emails_sent=1000, default_time=utcnow())`
 - **Purpose**: Cross-service hard bounce rate in the last 24 hours (used for platform-wide bounce alerts).
 - **Query type**: SELECT (aggregate subquery)
 - **Key filters/conditions**: `created_at BETWEEN (default_time - 24h) AND default_time`; `HAVING COUNT(*) >= min_emails_sent`
@@ -347,14 +349,14 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `service_bounce_rate_for_day(service_id, min_emails_sent=1000, default_time=utcnow())`
+#### `service_bounce_rate_for_day(service_id, min_emails_sent=1000, default_time=utcnow())`
 - **Purpose**: Same as above but scoped to one service.
 - **Query type**: SELECT (aggregate subquery)
 - **Returns**: Single row `(total_emails, hard_bounces, bounce_rate%)` or `None` if below threshold.
 
 ---
 
-### `total_notifications_grouped_by_hour(service_id, default_time=utcnow(), interval=24)`
+#### `total_notifications_grouped_by_hour(service_id, default_time=utcnow(), interval=24)`
 - **Purpose**: Time-series email volume for a service over `interval` hours (used for bounce dashboard charting).
 - **Query type**: SELECT (aggregate)
 - **Key filters/conditions**: `notification_type = 'email'`, `service_id = ?`, `created_at` within interval
@@ -362,18 +364,36 @@ Notifications are stored in the `notifications` table while they are live. Once 
 
 ---
 
-### `total_hard_bounces_grouped_by_hour(service_id, default_time=utcnow(), interval=24)`
+#### `total_hard_bounces_grouped_by_hour(service_id, default_time=utcnow(), interval=24)`
 - **Purpose**: Time-series hard-bounce count per hour for a service.
 - **Key filters/conditions**: Same as above plus `feedback_type = 'hard-bounce'` (the `NOTIFICATION_HARD_BOUNCE` constant)
 - **Returns**: List of `(hour, total_notifications)`
 
 ---
 
-### `resign_notifications(chunk_size, resign, unsafe=False)` / `_resign_notifications_chunk(...)`
+#### `resign_notifications(chunk_size, resign, unsafe=False)` / `_resign_notifications_chunk(...)`
 - **Purpose**: Maintenance operation — re-encrypt the `_personalisation` column for all notification rows with a (potentially rotated) signing key.
 - **Query type**: SELECT (chunked by `slice`) → conditional UPDATE (bulk)
 - **Returns**: Count of notifications resigned or needing re-signing.
 - **Notes**: `resign=False` is a dry-run (counts but does not write). `unsafe=True` forces re-sign even for rows with bad signatures.
+
+---
+
+#### `country_records_delivery(phone_prefix)`
+- **Purpose**: Determine whether a given country (identified by phone prefix) produces delivery receipts for SMS.
+- **Query type**: Lookup against `INTERNATIONAL_BILLING_RATES` constant (no DB query).
+- **Key filters/conditions**: `phone_prefix` must exist in `INTERNATIONAL_BILLING_RATES`; the `dlr` attribute must be `"yes"` (case-insensitive).
+- **Returns**: `True` if delivery receipts are expected, `False` otherwise (including when the prefix is unknown).
+- **Notes**: Used in `update_notification_status_by_id` to decide whether to apply an incoming delivery receipt for an international SMS.
+
+---
+
+#### `guess_notification_type(search_term)`
+- **Purpose**: Infer whether a search term is an email address or SMS phone number.
+- **Query type**: None (pure string inspection).
+- **Key filters/conditions**: If the term contains any ASCII letter or `@` character → `EMAIL_TYPE`; otherwise → `SMS_TYPE`.
+- **Returns**: `EMAIL_TYPE` or `SMS_TYPE` string constant.
+- **Notes**: Used by `dao_get_notifications_by_to_field` when `notification_type` is not explicitly supplied.
 
 ---
 

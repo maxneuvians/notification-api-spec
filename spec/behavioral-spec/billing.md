@@ -92,6 +92,7 @@ Optional query param: `financial_year_start` (integer year).
   | Jan 1 – Mar 31  | Q3-{prev FY}    | Oct 1 00:00 – Dec 31 23:59:59      |
 
 - **Label format**: `"Q{n}-{fiscal_year_start_year}"` (e.g., `"Q4-2020"`, `"Q1-2021"`).
+- **⚠️ Under-tested**: `get_previous_quarter`, `insert_quarter_data`, and `fetch_quarter_cummulative_stats` are specified above but have minimal automated test coverage in Python. In particular, the fiscal-year boundary edge case (date = April 1, which flips the quarter) is not explicitly tested. Go must include boundary tests for April 1 (inclusive) and March 31 vs April 1 crossover.
 
 ### `insert_quarter_data`
 

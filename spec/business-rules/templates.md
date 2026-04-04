@@ -53,6 +53,8 @@ within a service.
 - **Returns**: The updated `Template` object.
 - **Notes**:
   - **Does not** increment `version` or set `updated_at` in the UPDATE expression (unlike `dao_update_template_reply_to` and `dao_update_template_category`). The history row therefore shares the same version number as the previous snapshot — this is an anomaly in the current implementation.
+  - **⚠️ Version-collision hazard**: because no version increment occurs, calling `dao_get_template_by_id(id, version=N)` after this operation will find **two** `templates_history` rows with version N and raise `MultipleResultsFound`. Go must use `LIMIT 1` (not a strict-single-row assertion) for version-based template-history lookups.
+  - **⚠️ Missing `template_category_id` in history row**: the manually-constructed `TemplateHistory` dict omits `template_category_id`. The history row will have a null category even if the live template has one assigned. Go must include `template_category_id` when inserting history rows for this operation.
   - The `TemplateHistory` row is constructed manually (no `@version_class` decorator).
   - Wrapped in `@transactional`.
 
@@ -64,6 +66,7 @@ within a service.
 - **Notes**:
   - Increments `version` via `Template.version + 1` and sets `updated_at = utcnow()` in the UPDATE expression.
   - The `TemplateHistory` row is constructed manually (no `@version_class` decorator).
+  - **⚠️ Missing `template_category_id` in history row**: despite updating `template_category_id` on the live template, the manually-constructed `TemplateHistory` dict does not include this field. Go must include `template_category_id` in history row inserts.
   - Wrapped in `@transactional`.
 
 #### `dao_redact_template(template, user_id)`
@@ -163,7 +166,7 @@ within a service.
 - **Query type**: UPDATE (`template_categories`)
 - **Key filters/conditions**: None (ORM tracks changes via identity map).
 - **Returns**: `None`.
-- **Notes**: Calls `db.session.commit()` explicitly inside the function in addition to the `@transactional` wrapper (redundant double-commit — the second is a no-op).
+- **Notes**: Calls `db.session.commit()` explicitly inside the function in addition to the `@transactional` wrapper (redundant double-commit). The second commit is a no-op in the normal path but may behave unexpectedly in error conditions. Go must issue only a single commit per transaction.
 
 #### `dao_delete_template_category_by_id(template_category_id, cascade=False)`
 - **Purpose**: Deletes a `TemplateCategory`, with optional reassignment of associated templates.
@@ -231,7 +234,8 @@ within a service.
   - First save (version is falsy): sets `version = 1`, sets `created_at`.
   - Subsequent saves: increments `version`, sets `updated_at`.
 - When specialized update functions (`dao_update_template_reply_to`, `dao_update_template_category`) are used, they manually increment `version` and set `updated_at` in the UPDATE statement and build the history row from template fields.
-- `dao_update_template_process_type` is an anomaly: it writes a history row without incrementing `version`, so two snapshots may share the same version number.
+- `dao_update_template_process_type` is an anomaly: it writes a history row without incrementing `version`, so two snapshots may share the same version number. **Go must use `LIMIT 1` (not a strict single-row assertion) when querying `templates_history` by `(id, version)`** to avoid a runtime error.
+- The manually-constructed `TemplateHistory` dicts in `dao_update_template_reply_to`, `dao_update_template_process_type`, and `dao_update_template_category` all **omit `template_category_id`**. Go must include this field in all history row inserts so that the category assignment audit trail is accurate.
 - Hidden templates (`hidden = True`) are excluded from version-history queries in `dao_get_template_versions`.
 
 ### Template Categories
@@ -248,6 +252,7 @@ within a service.
 - A template's effective `process_type` is a **derived hybrid property**:
   1. If `template.process_type_column` (the stored column) is non-null, that value is used.
   2. Otherwise, the category's `sms_process_type` (for SMS templates) or `email_process_type` (for email templates) is used.
+- **⚠️ Null-crash hazard**: if `template_category_id` is NULL (no category assigned) **and** `process_type_column` is also NULL, the hybrid property raises `AttributeError` because it attempts to access `self.template_category.sms_process_type` on a `None` relationship. Go must guard against this: resolve to `nil`/empty when both fields are absent.
 - Letter templates have no process-type resolution via category (the `else_` branch of the hybrid expression returns `process_type_column` directly).
 - Process type drives which Celery queue a notification is routed to (bulk = low priority, priority = high priority).
 
