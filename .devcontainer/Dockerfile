@@ -1,4 +1,12 @@
-FROM mcr.microsoft.com/devcontainers/go:1.23
+FROM mcr.microsoft.com/devcontainers/go:1.25
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    nodejs \
+    npm \
+    postgresql-client \
+    redis-tools && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install golang-migrate
 RUN MIGRATE_VERSION=$(curl -s https://api.github.com/repos/golang-migrate/migrate/releases/latest | grep '"tag_name"' | cut -d'"' -f4) && \

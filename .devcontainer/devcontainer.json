@@ -1,41 +1,37 @@
 {
-  "name": "GC Notify API",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-
-  "remoteEnv": {
-    "DATABASE_URL": "postgres://postgres:postgres@db:5432/notification_api",
-    "REDIS_URL": "redis://redis:6379",
-    "NOTIFY_ENVIRONMENT": "development"
-  },
-
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "golang.go",
-        "ms-azuretools.vscode-docker",
-        "mtxr.sqltools",
-        "mtxr.sqltools-driver-pg",
-        "github.copilot",
-        "github.copilot-chat"
-      ],
-      "settings": {
-        "go.toolsManagement.checkForUpdates": "local",
-        "go.useLanguageServer": true,
-        "go.gopath": "/go",
-        "go.goroot": "/usr/local/go",
-        "[go]": {
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
-          }
+    "name": "GC Notify API",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "app",
+    "workspaceFolder": "/workspaces",
+    "remoteEnv": {
+        "DATABASE_URL": "postgres://postgres:postgres@db:5432/notification_api",
+        "REDIS_URL": "redis://redis:6379",
+        "NOTIFY_ENVIRONMENT": "development"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go",
+                "ms-azuretools.vscode-docker",
+                "mtxr.sqltools",
+                "mtxr.sqltools-driver-pg",
+                "github.copilot",
+                "github.copilot-chat"
+            ],
+            "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go",
+                "go.goroot": "/usr/local/go",
+                "[go]": {
+                    "editor.formatOnSave": true,
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports": "explicit"
+                    }
+                }
+            }
         }
-      }
-    }
-  },
-
-  "postCreateCommand": "go mod download",
-
-  "features": {}
+    },
+    "postCreateCommand": "sudo npm install -g @fission-ai/openspec@latest",
+    "features": {}
 }

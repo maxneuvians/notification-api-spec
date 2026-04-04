@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ..:/workspaces/${LOCAL_WORKSPACE_FOLDER_BASENAME:-notification-api}:cached
+      - ..:/workspaces:cached
     command: sleep infinity
     depends_on:
       - db
