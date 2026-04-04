@@ -1,0 +1,32 @@
+## 1. inbound_sms Repository Layer (C1 fix)
+
+- [ ] 1.1 Define `InboundSms` Go struct and sqlc query file in `internal/repository/inbound_sms/`; annotate `content` field as raw `[]byte` (stores ciphertext — no ORM encryption)
+- [ ] 1.2 Implement `CreateInboundSms(ctx, inbound_sms)`: caller passes pre-encrypted bytes; transactional; write round-trip test confirming raw DB value ≠ plaintext and `pkg/crypto.Decrypt(stored)` == plaintext
+- [ ] 1.3 Implement `GetInboundSmsForService(ctx, service_id, user_number, limit_days, limit)`: SELECT ordered `created_at DESC`; optional `user_number` equality filter; optional `created_at >= midnight_n_days_ago(limit_days)` with EST midnight (UTC 04:00) boundary; optional row-count limit; write tests: cross-service exclusion, EST midnight boundary, sender filter, limit cap
+- [ ] 1.4 Implement `GetInboundSmsByID(ctx, service_id, id)`: SELECT by `(id, service_id)` using `.one()`-equivalent; return `ErrNotFound` when no row; write test: cross-service lookup returns `ErrNotFound`
+- [ ] 1.5 Implement `GetPaginatedInboundSmsForPublicAPI(ctx, service_id, older_than, page_size)`: cursor via scalar subquery resolving `created_at` for `older_than` UUID; `page_size` defaults to `config["API_PAGE_SIZE"]`; write tests: correct cursor pagination, cursor exhaustion returns empty list, cross-service exclusion
+- [ ] 1.6 Implement `CountInboundSmsForService(ctx, service_id, limit_days)`: `COUNT(*)` with `service_id` equality and EST midnight date window; write test for per-service isolation
+- [ ] 1.7 Implement `GetPaginatedMostRecentInboundSmsByUserNumber(ctx, service_id, page, limit_days)`: self-join anti-pattern — outer join `inbound_sms` on itself to drop all but newest row per `(user_number, service_id)`; page-based via `config["PAGE_SIZE"]`; returns `{ items, has_next, per_page }`; write tests: deduplication by sender, `has_next` semantics, retention cutoff with EST boundary
+- [ ] 1.8 Implement `DeleteInboundSmsOlderThanRetention(ctx)`: two-pass sweep — pass 1: services with SMS `ServiceDataRetention` AND assigned inbound number (use `days_of_retention`); pass 2: remaining services (7-day default); inner DELETE loop capped at 10 000 rows per iteration until 0 deleted; write test with frozen clock: 3-day/7-day/30-day services → 4 + 2 + 1 = 7 total deleted
+- [ ] 1.9 Implement `ResignInboundSms(ctx, resign bool, unsafe bool)`: full-table scan, verify then re-sign `content`; `resign=false` dry-run reverts to original bytes before commit; `unsafe=true` falls back to `verify_unsafe()` skipping `BadSignature`; write tests: `resign=true` changes ciphertext but plaintext unchanged, `resign=false` makes no DB writes, `unsafe=true` skips bad-signature error
+
+## 2. SNS Ingestion Handler
+
+- [ ] 2.1 Implement SNS signature validation helper in `internal/handler/inbound/`: fetch and cache SNS signing certificate, verify RSA signature on message fields; return 403 on validation failure; write test: invalid signature returns 403 and no row is created
+- [ ] 2.2 Implement `POST /inbound-sms` handler: parse SNS JSON body → normalise `user_number` to E.164 via `try_validate_and_format_phone_number` (alphanumeric IDs verbatim) → `pkg/crypto.Encrypt(body)` → `CreateInboundSms` → conditionally enqueue `send-inbound-sms` only when service has a `service_inbound_api` URL; write tests: row created with ciphertext in `content`, task enqueued when URL present, no task when URL absent
+
+## 3. Inbox Endpoints
+
+- [ ] 3.1 Implement `GET /service/{service_id}/inbound-sms` (admin auth): read optional `phone_number` query param and normalise to E.164 (alphanumeric verbatim); compute retention days from service `ServiceDataRetention` (SMS type) or default 7; call `GetInboundSmsForService`; decrypt each row's `content`; return `{ "data": [...] }` newest-first; write tests: no-filter returns all within retention, E.164 normalisation, alphanumeric filter, custom-retention window, cross-service isolation
+- [ ] 3.2 Implement `GET /service/{service_id}/inbound-sms/most-recent` (admin auth): read `page` query param (default 1); call `GetPaginatedMostRecentInboundSmsByUserNumber` with retention days; decrypt each item's `content`; return `{ items, has_next, per_page }`; write tests: full first page, partial last page, `has_next` false on last page, retention filter
+- [ ] 3.3 Implement `GET /service/{service_id}/inbound-sms/summary` (admin auth): count via `CountInboundSmsForService` (hard-coded 7 days), most_recent via `GetInboundSmsForService(limit=1)`; return `{ "count", "most_recent" }` with `most_recent: null` when none; write tests: count=0, count>0, most_recent populated correctly
+- [ ] 3.4 Implement `GET /service/{service_id}/inbound-sms/{inbound_sms_id}` (admin auth): validate both path params are UUIDs (return 404 if not); call `GetInboundSmsByID`; decrypt `content`; return 404 on `ErrNotFound`; write tests: happy path, non-UUID param, cross-service 404
+- [ ] 3.5 Implement `GET /v2/received-text-messages` (service API key auth): reject any query param other than `older_than` with 400 (`ValidationError: Additional properties are not allowed`); call `GetPaginatedInboundSmsForPublicAPI`; decrypt each item's `content`; build `received_text_messages` array with UTC `Z` timestamps; include `links.next=?older_than=<last_id>` only when more records exist; write tests: cursor walk, cursor exhaustion → empty list + no `links.next`, extra-param 400, UTC `Z` timestamp enforced
+
+## 4. send-inbound-sms Webhook Worker
+
+- [ ] 4.1 Implement `send-inbound-sms` worker goroutine in `internal/worker/`: read `inbound_sms` row (decrypt `content`), read `service_inbound_api` URL; apply SSRF guard (same deny-list as service callbacks) — log error and stop if blocked; POST JSON payload `{ id, source_number, destination_number, message, date_received, service_id }` with signed bearer token; retry policy max 5 attempts, 300 s total timeout; write tests: successful POST verified once, SSRF-blocked URL skips POST and returns error, 5xx response triggers up to 5 retry attempts
+
+## 5. Nightly Retention Beat Task
+
+- [ ] 5.1 Register `delete-inbound-sms-older-than-retention` as a nightly beat entry in `internal/worker/scheduled/`; call `DeleteInboundSmsOlderThanRetention`; log total deleted count at INFO level; write integration test with mock clock confirming the 3-service scenario (3-day, 7-day, 30-day — total 7 deleted) and that the beat entry is present in the schedule

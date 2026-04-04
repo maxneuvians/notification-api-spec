@@ -1,0 +1,5 @@
+## 1. Letter Stub Handlers
+
+- [ ] 1.1 Implement letter-contact group (5 routes) in `internal/handler/services/letter_contacts.go`: `GET /service/{id}/letter-contact` (200 `{"data": []}`), `POST /service/{id}/letter-contact` (200 stub object), `GET /service/{id}/letter-contact/{cid}` (200 stub), `PUT /service/{id}/letter-contact/{cid}` (200 stub), `POST /service/{id}/letter-contact/{cid}/archive` (200 stub); annotate each with `// STUB: letter implementation not in scope`
+- [ ] 1.2 Implement `POST /service/{id}/send-pdf-letter` returning HTTP 400 `{"result": "error", "message": "Letters as PDF feature is not enabled"}`; implement `GET /letters/returned` returning HTTP 200 `{"data": []}`; annotate both as stubs; register all 7 routes under the admin JWT middleware (requires admin JWT → 401 without it)
+- [ ] 1.3 Write unit tests for all 7 stub endpoints: assert correct HTTP status codes (200 or 400), assert `send-pdf-letter` response body contains verbatim message `"Letters as PDF feature is not enabled"`, assert all 7 routes return 401 when the admin JWT is absent
