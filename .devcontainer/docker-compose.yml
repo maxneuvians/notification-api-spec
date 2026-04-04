@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspaces/${LOCAL_WORKSPACE_FOLDER_BASENAME:-notification-api}:cached
+    command: sleep infinity
+    depends_on:
+      - db
+      - redis
+    networks:
+      - notify-dev
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/notification_api
+      REDIS_URL: redis://redis:6379
+      NOTIFY_ENVIRONMENT: development
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: notification_api
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - notify-dev
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - notify-dev
+
+networks:
+  notify-dev:
+    driver: bridge
+
+volumes:
+  pgdata:
