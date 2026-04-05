@@ -7,13 +7,16 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 
 	"github.com/maxneuvians/notification-api-spec/internal/config"
@@ -44,6 +47,46 @@ func TestOpenDBReturnsError(t *testing.T) {
 	if _, err := openDB("postgresql://127.0.0.1:1/notify?connect_timeout=1&sslmode=disable", 1); err == nil {
 		t.Fatal("expected error, got nil")
 	}
+}
+
+type fakeServer struct {
+	listenErr error
+	called    bool
+}
+
+func (s *fakeServer) ListenAndServe() error {
+	s.called = true
+	return s.listenErr
+}
+
+type stubServiceQueries struct {
+	service     servicesRepo.Service
+	serviceErr  error
+	permissions []string
+	permErr     error
+}
+
+func (s *stubServiceQueries) GetServiceByIDWithAPIKeys(_ context.Context, _ uuid.UUID) (servicesRepo.Service, error) {
+	return s.service, s.serviceErr
+}
+
+func (s *stubServiceQueries) GetServicePermissions(_ context.Context, _ uuid.UUID) ([]string, error) {
+	return s.permissions, s.permErr
+}
+
+type stubAPIKeyQueries struct {
+	apiKeys []apiKeysRepo.ApiKey
+	keysErr error
+	apiKey  apiKeysRepo.ApiKey
+	keyErr  error
+}
+
+func (s *stubAPIKeyQueries) GetAPIKeysByServiceID(_ context.Context, _ uuid.UUID) ([]apiKeysRepo.ApiKey, error) {
+	return s.apiKeys, s.keysErr
+}
+
+func (s *stubAPIKeyQueries) GetAPIKeyBySecret(_ context.Context, _ string) (apiKeysRepo.ApiKey, error) {
+	return s.apiKey, s.keyErr
 }
 
 type authRepoStub struct {
@@ -274,6 +317,217 @@ func TestNewRouterAuthGroups(t *testing.T) {
 
 		if res.StatusCode != http.StatusOK {
 			t.Fatalf("status = %d, want 200", res.StatusCode)
+		}
+	})
+}
+
+func TestServiceAuthRepositoryDelegates(t *testing.T) {
+	serviceID := uuid.New()
+	service := servicesRepo.Service{ID: serviceID, Name: "svc"}
+	apiKey := apiKeysRepo.ApiKey{ID: uuid.New(), ServiceID: serviceID, Secret: "secret"}
+	repo := newServiceAuthRepository(
+		&stubServiceQueries{service: service, permissions: []string{"send_emails"}},
+		&stubAPIKeyQueries{apiKeys: []apiKeysRepo.ApiKey{apiKey}, apiKey: apiKey},
+	)
+
+	gotService, err := repo.GetServiceByIDWithAPIKeys(context.Background(), serviceID)
+	if err != nil {
+		t.Fatalf("GetServiceByIDWithAPIKeys() error = %v", err)
+	}
+	if gotService.ID != service.ID {
+		t.Fatalf("service id = %v, want %v", gotService.ID, service.ID)
+	}
+
+	permissions, err := repo.GetServicePermissions(context.Background(), serviceID)
+	if err != nil {
+		t.Fatalf("GetServicePermissions() error = %v", err)
+	}
+	if len(permissions) != 1 || permissions[0] != "send_emails" {
+		t.Fatalf("permissions = %v, want [send_emails]", permissions)
+	}
+
+	apiKeys, err := repo.GetAPIKeysByServiceID(context.Background(), serviceID)
+	if err != nil {
+		t.Fatalf("GetAPIKeysByServiceID() error = %v", err)
+	}
+	if len(apiKeys) != 1 || apiKeys[0].ID != apiKey.ID {
+		t.Fatalf("api keys = %v, want [%v]", apiKeys, apiKey.ID)
+	}
+
+	gotAPIKey, err := repo.GetAPIKeyBySecret(context.Background(), apiKey.Secret)
+	if err != nil {
+		t.Fatalf("GetAPIKeyBySecret() error = %v", err)
+	}
+	if gotAPIKey.ID != apiKey.ID {
+		t.Fatalf("api key id = %v, want %v", gotAPIKey.ID, apiKey.ID)
+	}
+}
+
+func TestRun(t *testing.T) {
+	originalLoadConfig := loadAPIConfig
+	originalOpenDB := openAPIDB
+	originalRunMigrations := runAPIMigrations
+	originalNewRedisStore := newRedisStore
+	originalNewServer := newAPIServer
+	originalNewLogger := newAPILogger
+	defer func() {
+		loadAPIConfig = originalLoadConfig
+		openAPIDB = originalOpenDB
+		runAPIMigrations = originalRunMigrations
+		newRedisStore = originalNewRedisStore
+		newAPIServer = originalNewServer
+		newAPILogger = originalNewLogger
+	}()
+
+	newAPILogger = func() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+	validCfg := &config.Config{
+		DatabaseURI:             "writer",
+		DBPoolSize:              1,
+		AdminBaseURL:            "http://localhost",
+		AttachmentNumLimit:      1,
+		AttachmentSizeLimit:     1,
+		RateLimitPerSecond:      10,
+		RateLimitBurst:          20,
+		APIKeyPrefix:            "gcntfy-",
+		AdminClientUserName:     "notify-admin",
+		AdminClientSecret:       "admin-secret",
+		SREUserName:             "notify-sre",
+		SREClientSecret:         "sre-secret",
+		CacheClearUserName:      "cache-clear",
+		CacheClearClientSecret:  "cache-secret",
+		CypressAuthUserName:     "cypress",
+		CypressAuthClientSecret: "cypress-secret",
+		SecretKeys:              []string{"current-secret"},
+	}
+
+	t.Run("load config failure", func(t *testing.T) {
+		loadAPIConfig = func() (*config.Config, error) { return nil, errors.New("boom") }
+		if err := run(); err == nil || !strings.Contains(err.Error(), "load config") {
+			t.Fatalf("run() error = %v, want load config failure", err)
+		}
+	})
+
+	t.Run("open writer db failure", func(t *testing.T) {
+		loadAPIConfig = func() (*config.Config, error) { return &config.Config{DatabaseURI: "writer", DBPoolSize: 1}, nil }
+		openAPIDB = func(string, int) (*sql.DB, error) { return nil, errors.New("open failed") }
+		if err := run(); err == nil || !strings.Contains(err.Error(), "open writer database") {
+			t.Fatalf("run() error = %v, want writer db failure", err)
+		}
+	})
+
+	t.Run("open reader db failure", func(t *testing.T) {
+		writerDB, writerMock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("sqlmock.New() error = %v", err)
+		}
+		defer writerDB.Close()
+		writerMock.ExpectClose()
+
+		loadAPIConfig = func() (*config.Config, error) {
+			return &config.Config{DatabaseURI: "writer", DatabaseReaderURI: "reader", DBPoolSize: 1}, nil
+		}
+		openCalls := 0
+		openAPIDB = func(string, int) (*sql.DB, error) {
+			openCalls++
+			if openCalls == 1 {
+				return writerDB, nil
+			}
+			return nil, errors.New("reader failed")
+		}
+		if err := run(); err == nil || !strings.Contains(err.Error(), "open reader database") {
+			t.Fatalf("run() error = %v, want reader db failure", err)
+		}
+		if err := writerMock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("writer expectations: %v", err)
+		}
+	})
+
+	t.Run("redis store failure", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("sqlmock.New() error = %v", err)
+		}
+		defer db.Close()
+		mock.ExpectClose()
+
+		loadAPIConfig = func() (*config.Config, error) {
+			return &config.Config{DatabaseURI: "writer", DBPoolSize: 1, RedisEnabled: true, CacheOpsURL: "redis://bad"}, nil
+		}
+		openAPIDB = func(string, int) (*sql.DB, error) { return db, nil }
+		newRedisStore = func(string) (serviceauth.RedisStore, error) { return nil, errors.New("redis failed") }
+		if err := run(); err == nil || !strings.Contains(err.Error(), "open redis store") {
+			t.Fatalf("run() error = %v, want redis store failure", err)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("db expectations: %v", err)
+		}
+	})
+
+	t.Run("migration failure", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("sqlmock.New() error = %v", err)
+		}
+		defer db.Close()
+		mock.ExpectClose()
+
+		loadAPIConfig = func() (*config.Config, error) { return &config.Config{DatabaseURI: "writer", DBPoolSize: 1}, nil }
+		openAPIDB = func(string, int) (*sql.DB, error) { return db, nil }
+		newRedisStore = func(string) (serviceauth.RedisStore, error) { return nil, nil }
+		runAPIMigrations = func(*sql.DB, string) error { return errors.New("migrate failed") }
+		if err := run(); err == nil || !strings.Contains(err.Error(), "run migrations") {
+			t.Fatalf("run() error = %v, want migration failure", err)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("db expectations: %v", err)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("sqlmock.New() error = %v", err)
+		}
+		defer db.Close()
+		mock.ExpectClose()
+
+		loadAPIConfig = func() (*config.Config, error) { return validCfg, nil }
+		openAPIDB = func(string, int) (*sql.DB, error) { return db, nil }
+		runAPIMigrations = func(*sql.DB, string) error { return nil }
+		server := &fakeServer{listenErr: errors.New("serve failed")}
+		newAPIServer = func(string, http.Handler) listenServer { return server }
+		if err := run(); err == nil || !strings.Contains(err.Error(), "serve http") {
+			t.Fatalf("run() error = %v, want server failure", err)
+		}
+		if !server.called {
+			t.Fatal("expected server to be started")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("db expectations: %v", err)
+		}
+	})
+
+	t.Run("http err server closed treated as success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("sqlmock.New() error = %v", err)
+		}
+		defer db.Close()
+		mock.ExpectClose()
+
+		loadAPIConfig = func() (*config.Config, error) { return validCfg, nil }
+		openAPIDB = func(string, int) (*sql.DB, error) { return db, nil }
+		runAPIMigrations = func(*sql.DB, string) error { return nil }
+		server := &fakeServer{listenErr: http.ErrServerClosed}
+		newAPIServer = func(string, http.Handler) listenServer { return server }
+		if err := run(); err != nil {
+			t.Fatalf("run() error = %v, want nil", err)
+		}
+		if !server.called {
+			t.Fatal("expected server to be started")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("db expectations: %v", err)
 		}
 	})
 }

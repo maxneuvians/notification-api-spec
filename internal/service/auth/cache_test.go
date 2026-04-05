@@ -118,6 +118,45 @@ func TestServiceAuthCache(t *testing.T) {
 			t.Fatalf("Get() = (%v, %v), want (nil, false)", got, ok)
 		}
 	})
+
+	t.Run("invalid json treated as miss", func(t *testing.T) {
+		cache := NewServiceAuthCache(&mockRedisStore{values: map[string]string{cacheKey(serviceID): "{"}})
+		if got, ok := cache.Get(ctx, serviceID); ok || got != nil {
+			t.Fatalf("Get() = (%v, %v), want (nil, false)", got, ok)
+		}
+	})
+
+	t.Run("nil cache behaves as no-op miss", func(t *testing.T) {
+		var cache *ServiceAuthCache
+		if got, ok := cache.Get(ctx, serviceID); ok || got != nil {
+			t.Fatalf("Get() = (%v, %v), want (nil, false)", got, ok)
+		}
+		cache.Set(ctx, serviceID, fixture, time.Second)
+		cache.Invalidate(ctx, serviceID)
+	})
+
+	t.Run("nil payload does not write", func(t *testing.T) {
+		store := &mockRedisStore{values: map[string]string{}}
+		cache := NewServiceAuthCache(store)
+		cache.Set(ctx, serviceID, nil, time.Second)
+		if len(store.values) != 0 {
+			t.Fatalf("stored values = %v, want empty", store.values)
+		}
+	})
+
+	t.Run("marshal failure does not write", func(t *testing.T) {
+		store := &mockRedisStore{values: map[string]string{}}
+		cache := NewServiceAuthCache(store)
+		invalid := &CachedServiceAuth{
+			Service:     fixture.Service,
+			Permissions: fixture.Permissions,
+			APIKeys:     []apiKeysRepo.ApiKey{{ID: uuid.New(), ServiceID: serviceID, CompromisedKeyInfo: []byte("{")}},
+		}
+		cache.Set(ctx, serviceID, invalid, time.Second)
+		if len(store.values) != 0 {
+			t.Fatalf("stored values = %v, want empty", store.values)
+		}
+	})
 }
 
 func cacheKey(serviceID uuid.UUID) string {

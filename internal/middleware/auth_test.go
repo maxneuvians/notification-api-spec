@@ -92,6 +92,9 @@ func TestDecodeBearerJWTRequest(t *testing.T) {
 		{name: "within skew accepted", authHeader: "bearer " + withinSkew, wantOK: true},
 		{name: "wrong signature deferred to verification", authHeader: "Bearer " + makeJWT(t, "wrong", map[string]any{"iss": "issuer", "iat": now.Unix(), "exp": now.Add(time.Minute).Unix()}), wantOK: true},
 		{name: "missing issuer rejected", authHeader: "Bearer " + makeJWT(t, "secret", map[string]any{"iat": now.Unix(), "exp": now.Add(time.Minute).Unix()}), wantReason: "issuer missing"},
+		{name: "missing expiry rejected", authHeader: "Bearer " + makeJWT(t, "secret", map[string]any{"iss": "issuer", "iat": now.Unix()}), wantReason: "expiry missing"},
+		{name: "missing issued at rejected", authHeader: "Bearer " + makeJWT(t, "secret", map[string]any{"iss": "issuer", "exp": now.Add(time.Minute).Unix()}), wantReason: "issued-at missing"},
+		{name: "future issued at rejected", authHeader: "Bearer " + makeJWT(t, "secret", map[string]any{"iss": "issuer", "iat": now.Add(31 * time.Second).Unix(), "exp": now.Add(time.Minute).Unix()}), wantReason: "token issued in the future"},
 		{name: "malformed base64 rejected", authHeader: "Bearer a.!?.c", wantReason: "jwt header is malformed"},
 		{name: "fewer than three parts rejected", authHeader: "Bearer a.b", wantReason: "jwt must contain three parts"},
 		{name: "missing authorization header rejected", wantReason: "authorization header missing"},
@@ -125,6 +128,80 @@ func TestDecodeBearerJWTRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJWTHelpersAndPanics(t *testing.T) {
+	t.Run("bearer token requires bearer scheme", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Basic abc")
+		if _, err := bearerTokenFromRequest(req); err == nil || err.Error() != "authorization header must use Bearer scheme" {
+			t.Fatalf("bearerTokenFromRequest() error = %v", err)
+		}
+	})
+
+	t.Run("api key requires exact scheme", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "apikey-v1 secret")
+		if _, err := apiKeyFromRequest(req); err == nil || err.Error() != "authorization header must use ApiKey-v1 scheme" {
+			t.Fatalf("apiKeyFromRequest() error = %v", err)
+		}
+	})
+
+	t.Run("api key requires token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", apiKeySchemePrefix)
+		if _, err := apiKeyFromRequest(req); err == nil || err.Error() != "authorization token missing" {
+			t.Fatalf("apiKeyFromRequest() error = %v", err)
+		}
+	})
+
+	t.Run("parse api key rejects invalid values", func(t *testing.T) {
+		cases := []string{
+			"wrongprefix-123",
+			"gcntfy-short",
+			"gcntfy-not-a-uuid123e4567-e89b-12d3-a456-426614174000",
+			"gcntfy-123e4567-e89b-12d3-a456-426614174000not-a-uuid-token-value-123456",
+		}
+		for _, plaintext := range cases {
+			if _, _, err := parseAPIKeyValue("gcntfy-", plaintext); err == nil || err.Error() != "invalid api key format" {
+				t.Fatalf("parseAPIKeyValue(%q) error = %v", plaintext, err)
+			}
+		}
+	})
+
+	t.Run("service auth secrets fall back to secret key", func(t *testing.T) {
+		secrets := serviceAuthSecrets(Config{SecretKey: []string{"fallback"}})
+		if len(secrets) != 1 || secrets[0] != "fallback" {
+			t.Fatalf("serviceAuthSecrets() = %v, want [fallback]", secrets)
+		}
+	})
+
+	t.Run("admin auth panics without secret", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		_ = RequireAdminAuth(Config{AdminClientUserName: "notify-admin"})
+	})
+
+	t.Run("cypress auth panics without secret", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		_ = RequireCypressAuth(Config{CypressAuthUserName: "cypress"})
+	})
+
+	t.Run("unsupported algorithm rejected", func(t *testing.T) {
+		token := makeJWTWithHeader(t, map[string]any{"alg": "HS512", "typ": "JWT"}, "secret", map[string]any{"iss": "issuer", "iat": time.Now().Unix(), "exp": time.Now().Add(time.Minute).Unix()})
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		if _, _, err := decodeBearerJWTRequest(req, time.Now()); err == nil || err.Error() != "unsupported signing algorithm" {
+			t.Fatalf("decodeBearerJWTRequest() error = %v", err)
+		}
+	})
 }
 
 func TestSimpleJWTMiddleware(t *testing.T) {
@@ -446,6 +523,22 @@ func TestRequireAuthAPIKeyPath(t *testing.T) {
 			t.Fatalf("status = %d, want 401", res.Code)
 		}
 	})
+
+	t.Run("service mismatch rejected", func(t *testing.T) {
+		other := matchedKey
+		other.ServiceID = uuid.New()
+		res := exerciseMiddleware(t, RequireAuth(Config{APIKeyPrefix: "gcntfy-", SecretKeys: []string{"current-secret"}}, cache, &authRepoStub{service: repo.service, permissions: repo.permissions, apiKeys: []apiKeysRepo.ApiKey{other}, secretLookup: map[string]apiKeysRepo.ApiKey{variant: other}}), "/v2/notifications", apiKeySchemePrefix+plaintextKey)
+		if res.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403", res.Code)
+		}
+	})
+
+	t.Run("lookup error rejected", func(t *testing.T) {
+		res := exerciseMiddleware(t, RequireAuth(Config{APIKeyPrefix: "gcntfy-", SecretKeys: []string{"current-secret"}}, cache, &authRepoStub{secretLookupErr: errors.New("lookup failed")}), "/v2/notifications", apiKeySchemePrefix+plaintextKey)
+		if res.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403", res.Code)
+		}
+	})
 }
 
 type serviceauthTestStore struct {
@@ -501,6 +594,17 @@ func assertTokenErrorBody(t *testing.T, res *httptest.ResponseRecorder, wantStat
 func makeJWT(t *testing.T, secret string, claims map[string]any) string {
 	t.Helper()
 	header := base64.RawURLEncoding.EncodeToString(mustJSON(t, map[string]any{"alg": "HS256", "typ": "JWT"}))
+	payload := base64.RawURLEncoding.EncodeToString(mustJSON(t, claims))
+	signingInput := header + "." + payload
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(signingInput))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return signingInput + "." + signature
+}
+
+func makeJWTWithHeader(t *testing.T, headerClaims map[string]any, secret string, claims map[string]any) string {
+	t.Helper()
+	header := base64.RawURLEncoding.EncodeToString(mustJSON(t, headerClaims))
 	payload := base64.RawURLEncoding.EncodeToString(mustJSON(t, claims))
 	signingInput := header + "." + payload
 	mac := hmac.New(sha256.New, []byte(secret))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -25,63 +26,94 @@ import (
 	serviceauth "github.com/maxneuvians/notification-api-spec/internal/service/auth"
 )
 
+var (
+	loadAPIConfig    = config.Load
+	openAPIDB        = openDB
+	runAPIMigrations = internalmigrate.Run
+	newRedisStore    = serviceauth.NewRedisStore
+	newAPIServer     = func(addr string, handler http.Handler) listenServer {
+		return &http.Server{Addr: addr, Handler: handler}
+	}
+	newAPILogger = func() *slog.Logger {
+		return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	}
+)
+
+type listenServer interface {
+	ListenAndServe() error
+}
+
+type serviceQueryReader interface {
+	GetServiceByIDWithAPIKeys(ctx context.Context, id uuid.UUID) (servicesRepo.Service, error)
+	GetServicePermissions(ctx context.Context, serviceID uuid.UUID) ([]string, error)
+}
+
+type apiKeyQueryReader interface {
+	GetAPIKeysByServiceID(ctx context.Context, serviceID uuid.UUID) ([]apiKeysRepo.ApiKey, error)
+	GetAPIKeyBySecret(ctx context.Context, secret string) (apiKeysRepo.ApiKey, error)
+}
+
 func main() {
-	cfg, err := config.Load()
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	cfg, err := loadAPIConfig()
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		return fmt.Errorf("load config: %w", err)
 	}
 
-	writerDB, err := openDB(cfg.DatabaseURI, cfg.DBPoolSize)
+	writerDB, err := openAPIDB(cfg.DatabaseURI, cfg.DBPoolSize)
 	if err != nil {
-		log.Fatalf("open writer database: %v", err)
+		return fmt.Errorf("open writer database: %w", err)
 	}
 	defer writerDB.Close()
 
-	// Default to the writer and override with a read replica when one is configured.
-	// Auth-path repository lookups such as services.GetServiceByIDWithAPIKeys and
-	// api_keys.GetAPIKeyBySecret should receive readerDB, while all writes stay on writerDB.
 	readerDB := writerDB
+	closeReader := false
 	if cfg.DatabaseReaderURI != "" {
-		readerDB, err = openDB(cfg.DatabaseReaderURI, cfg.DBPoolSize)
+		readerDB, err = openAPIDB(cfg.DatabaseReaderURI, cfg.DBPoolSize)
 		if err != nil {
-			log.Fatalf("open reader database: %v", err)
+			return fmt.Errorf("open reader database: %w", err)
 		}
+		closeReader = true
+	}
+	if closeReader {
 		defer readerDB.Close()
 	}
-	authRepo := &serviceAuthRepository{
-		services: servicesRepo.New(readerDB),
-		apiKeys:  apiKeysRepo.New(readerDB),
-	}
+
+	authRepo := newServiceAuthRepository(servicesRepo.New(readerDB), apiKeysRepo.New(readerDB))
 
 	var authCache *serviceauth.ServiceAuthCache
 	if cfg.RedisEnabled && cfg.CacheOpsURL != "" {
-		store, err := serviceauth.NewRedisStore(cfg.CacheOpsURL)
+		store, err := newRedisStore(cfg.CacheOpsURL)
 		if err != nil {
-			log.Fatalf("open redis store: %v", err)
+			return fmt.Errorf("open redis store: %w", err)
 		}
 		authCache = serviceauth.NewServiceAuthCache(store)
 	}
 
-	if err := internalmigrate.Run(writerDB, cfg.DatabaseURI); err != nil {
-		log.Fatalf("run migrations: %v", err)
+	if err := runAPIMigrations(writerDB, cfg.DatabaseURI); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	r := newRouter(cfg, logger, authCache, authRepo)
-
-	server := &http.Server{
-		Addr:    listenAddr(cfg.Port),
-		Handler: r,
+	server := newAPIServer(listenAddr(cfg.Port), newRouter(cfg, newAPILogger(), authCache, authRepo))
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve http: %w", err)
 	}
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("serve http: %v", err)
-	}
+	return nil
 }
 
 type serviceAuthRepository struct {
-	services *servicesRepo.Queries
-	apiKeys  *apiKeysRepo.Queries
+	services serviceQueryReader
+	apiKeys  apiKeyQueryReader
+}
+
+func newServiceAuthRepository(services serviceQueryReader, apiKeys apiKeyQueryReader) *serviceAuthRepository {
+	return &serviceAuthRepository{services: services, apiKeys: apiKeys}
 }
 
 func (r *serviceAuthRepository) GetServiceByIDWithAPIKeys(ctx context.Context, id uuid.UUID) (servicesRepo.Service, error) {
