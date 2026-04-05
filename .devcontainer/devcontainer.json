@@ -6,7 +6,8 @@
     "remoteEnv": {
         "DATABASE_URI": "postgres://postgres:postgres@db:5432/notification_api",
         "REDIS_URL": "redis://redis:6379",
-        "NOTIFY_ENVIRONMENT": "development"
+        "NOTIFY_ENVIRONMENT": "development",
+        "GOMODCACHE": "/home/vscode/.cache/go-mod"
     },
     "customizations": {
         "vscode": {
@@ -23,6 +24,9 @@
                 "go.useLanguageServer": true,
                 "go.gopath": "/go",
                 "go.goroot": "/usr/local/go",
+                "go.toolsEnvVars": {
+                    "GOMODCACHE": "/home/vscode/.cache/go-mod"
+                },
                 "[go]": {
                     "editor.formatOnSave": true,
                     "editor.codeActionsOnSave": {
