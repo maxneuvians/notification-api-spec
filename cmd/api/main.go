@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -10,6 +12,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
 	"github.com/maxneuvians/notification-api-spec/internal/config"
@@ -17,6 +20,9 @@ import (
 	statushandler "github.com/maxneuvians/notification-api-spec/internal/handler/status"
 	appmiddleware "github.com/maxneuvians/notification-api-spec/internal/middleware"
 	internalmigrate "github.com/maxneuvians/notification-api-spec/internal/migrate"
+	apiKeysRepo "github.com/maxneuvians/notification-api-spec/internal/repository/api_keys"
+	servicesRepo "github.com/maxneuvians/notification-api-spec/internal/repository/services"
+	serviceauth "github.com/maxneuvians/notification-api-spec/internal/service/auth"
 )
 
 func main() {
@@ -42,13 +48,59 @@ func main() {
 		}
 		defer readerDB.Close()
 	}
-	_ = readerDB
+	authRepo := &serviceAuthRepository{
+		services: servicesRepo.New(readerDB),
+		apiKeys:  apiKeysRepo.New(readerDB),
+	}
+
+	var authCache *serviceauth.ServiceAuthCache
+	if cfg.RedisEnabled && cfg.CacheOpsURL != "" {
+		store, err := serviceauth.NewRedisStore(cfg.CacheOpsURL)
+		if err != nil {
+			log.Fatalf("open redis store: %v", err)
+		}
+		authCache = serviceauth.NewServiceAuthCache(store)
+	}
 
 	if err := internalmigrate.Run(writerDB, cfg.DatabaseURI); err != nil {
 		log.Fatalf("run migrations: %v", err)
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	r := newRouter(cfg, logger, authCache, authRepo)
+
+	server := &http.Server{
+		Addr:    listenAddr(cfg.Port),
+		Handler: r,
+	}
+
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("serve http: %v", err)
+	}
+}
+
+type serviceAuthRepository struct {
+	services *servicesRepo.Queries
+	apiKeys  *apiKeysRepo.Queries
+}
+
+func (r *serviceAuthRepository) GetServiceByIDWithAPIKeys(ctx context.Context, id uuid.UUID) (servicesRepo.Service, error) {
+	return r.services.GetServiceByIDWithAPIKeys(ctx, id)
+}
+
+func (r *serviceAuthRepository) GetServicePermissions(ctx context.Context, serviceID uuid.UUID) ([]string, error) {
+	return r.services.GetServicePermissions(ctx, serviceID)
+}
+
+func (r *serviceAuthRepository) GetAPIKeysByServiceID(ctx context.Context, serviceID uuid.UUID) ([]apiKeysRepo.ApiKey, error) {
+	return r.apiKeys.GetAPIKeysByServiceID(ctx, serviceID)
+}
+
+func (r *serviceAuthRepository) GetAPIKeyBySecret(ctx context.Context, secret string) (apiKeysRepo.ApiKey, error) {
+	return r.apiKeys.GetAPIKeyBySecret(ctx, secret)
+}
+
+func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.ServiceAuthCache, authRepo appmiddleware.ServiceAuthRepository) http.Handler {
 	r := chi.NewRouter()
 	r.Use(appmiddleware.RequestID)
 	r.Use(appmiddleware.OTEL(cfg.FFEnableOtel))
@@ -59,15 +111,44 @@ func main() {
 	r.Use(apphandler.PanicMiddleware)
 
 	statushandler.RegisterRoutes(r)
+	r.Get("/version", okHandler)
 
-	server := &http.Server{
-		Addr:    listenAddr(cfg.Port),
-		Handler: r,
-	}
+	r.Route("/admin", func(r chi.Router) {
+		r.Use(appmiddleware.RequireAdminAuth(*cfg))
+		r.Get("/ping", okHandler)
+	})
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("serve http: %v", err)
-	}
+	r.Route("/sre-tools", func(r chi.Router) {
+		r.Use(appmiddleware.RequireSREAuth(*cfg))
+		r.Get("/ping", okHandler)
+	})
+
+	r.Route("/cache-clear", func(r chi.Router) {
+		r.Use(appmiddleware.RequireCacheClearAuth(*cfg))
+		r.Get("/ping", okHandler)
+	})
+
+	r.Route("/cypress", func(r chi.Router) {
+		r.Use(appmiddleware.RequireCypressAuth(*cfg))
+		r.Get("/ping", okHandler)
+	})
+
+	r.Route("/v2", func(r chi.Router) {
+		r.Use(appmiddleware.RequireAuth(*cfg, authCache, authRepo))
+		r.Get("/ping", okHandler)
+	})
+
+	return r
+}
+
+func okHandler(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func openDB(dsn string, maxOpen int) (*sql.DB, error) {

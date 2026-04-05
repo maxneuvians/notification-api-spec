@@ -125,7 +125,7 @@ const getAPIKeyBySecret = `-- name: GetAPIKeyBySecret :one
 SELECT id, name, secret, service_id, expiry_date, created_at, created_by_id, updated_at, version, key_type, compromised_key_info, last_used_timestamp
 FROM api_keys
 WHERE secret = $1
-    AND expiry_date IS NULL
+    AND (expiry_date IS NULL OR expiry_date > now())
 LIMIT 1
 `
 
@@ -193,7 +193,7 @@ const getAPIKeysByServiceID = `-- name: GetAPIKeysByServiceID :many
 SELECT id, name, secret, service_id, expiry_date, created_at, created_by_id, updated_at, version, key_type, compromised_key_info, last_used_timestamp
 FROM api_keys
 WHERE service_id = $1
-    AND expiry_date IS NULL
+    AND (expiry_date IS NULL OR expiry_date > now())
 ORDER BY created_at DESC
 `
 

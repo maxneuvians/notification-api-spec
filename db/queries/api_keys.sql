@@ -33,7 +33,7 @@ RETURNING *;
 SELECT *
 FROM api_keys
 WHERE service_id = sqlc.arg(service_id)
-    AND expiry_date IS NULL
+    AND (expiry_date IS NULL OR expiry_date > now())
 ORDER BY created_at DESC;
 -- name: GetAPIKeyByID :one
 SELECT *
@@ -50,7 +50,7 @@ RETURNING *;
 SELECT *
 FROM api_keys
 WHERE secret = sqlc.arg(secret)
-    AND expiry_date IS NULL
+    AND (expiry_date IS NULL OR expiry_date > now())
 LIMIT 1;
 -- name: UpdateAPIKeyLastUsed :one
 UPDATE api_keys
