@@ -1,12 +1,8 @@
-# Capability: go-project-scaffold
+## ADDED Requirements
 
-Project layout, Go module, config system, chi router with health endpoints, middleware stack (excluding auth), sqlc setup, golang-migrate with seed migration, SQS consumer/producer abstractions, `pkg/crypto` and `pkg/signing` packages, `WorkerManager` stub, CI Makefile.
+### Requirement: Project directory layout
 
----
-
-## Requirement: Project directory layout
-
-**R1** — The Go module SHALL implement the directory structure defined in `go-architecture.md`:
+The Go module SHALL implement the directory structure defined in `go-architecture.md`:
 `cmd/api/`, `cmd/worker/`, `db/migrations/`, `db/queries/`, `internal/handler/`, `internal/service/`, `internal/repository/`, `internal/middleware/`, `internal/worker/`, `internal/client/`, `internal/config/`, `queue/`, `pkg/crypto/`, `pkg/smsutil/`, `pkg/emailutil/`, `pkg/pagination/`, `pkg/signing/`.
 
 #### Scenario: Project builds from root
@@ -23,9 +19,9 @@ Project layout, Go module, config system, chi router with health endpoints, midd
 
 ---
 
-## Requirement: Configuration loaded from environment
+### Requirement: Configuration loaded from environment
 
-**R2** — `internal/config/config.go` SHALL define a flat `Config` struct. All fields SHALL be populated from environment variables. A `Load()` function SHALL return an error listing all missing required variables.
+`internal/config/config.go` SHALL define a flat `Config` struct. All fields SHALL be populated from environment variables. A `Load()` function SHALL return an error listing all missing required variables.
 
 Required variables include at minimum: `DATABASE_URI`, `ADMIN_CLIENT_SECRET`, `SECRET_KEY`, `DANGEROUS_SALT`.
 
@@ -55,9 +51,9 @@ Well-known internal UUIDs (`NotifyServiceID`, `HeartbeatServiceID`, etc.) and `A
 
 ---
 
-## Requirement: Health endpoints
+### Requirement: Health endpoints
 
-**R3** — `internal/handler/status/` SHALL implement four routes with no authentication:
+`internal/handler/status/` SHALL implement four routes with no authentication:
 - `GET /` → HTTP 200 `{"status": "ok"}`
 - `GET /_status` → HTTP 200 `{"status": "ok"}`
 - `POST /_status` → HTTP 200 `{"status": "ok"}`
@@ -81,9 +77,9 @@ Well-known internal UUIDs (`NotifyServiceID`, `HeartbeatServiceID`, etc.) and `A
 
 ---
 
-## Requirement: Middleware stack ordering
+### Requirement: Middleware stack ordering
 
-**R4** — `cmd/api/main.go` SHALL apply the following middleware to the top-level chi router in this exact order: RequestID, OTEL tracing, structured logging, CORS, rate limiting, request size limiting. Authentication middleware SHALL NOT be applied globally.
+`cmd/api/main.go` SHALL apply the following middleware to the top-level chi router in this exact order: RequestID, OTEL tracing, structured logging, CORS, rate limiting, request size limiting. Authentication middleware SHALL NOT be applied globally.
 
 #### Scenario: Request ID propagated when present in request
 - **WHEN** a request arrives with an `X-Request-ID: abc-123` header
@@ -111,9 +107,9 @@ Well-known internal UUIDs (`NotifyServiceID`, `HeartbeatServiceID`, etc.) and `A
 
 ---
 
-## Requirement: Database migrations run on startup
+### Requirement: Database migrations run on startup
 
-**R5** — Both `cmd/api/main.go` and `cmd/worker/main.go` SHALL call `runMigrations(db)` using `github.com/golang-migrate/migrate/v4` with the `postgres` driver before the application starts serving traffic or processing queues.
+Both `cmd/api/main.go` and `cmd/worker/main.go` SHALL call `runMigrations(db)` using `github.com/golang-migrate/migrate/v4` with the `postgres` driver before the application starts serving traffic or processing queues.
 
 `db/migrations/0001_initial.sql` is the seed migration derived from `spec/out.sql`.
 
@@ -135,9 +131,9 @@ Well-known internal UUIDs (`NotifyServiceID`, `HeartbeatServiceID`, etc.) and `A
 
 ---
 
-## Requirement: sqlc configuration
+### Requirement: sqlc configuration
 
-**R6** — `sqlc.yaml` SHALL configure the `postgresql` engine, point at `db/queries/` for queries and `db/migrations/` for schema, and output to `internal/repository/`. Type overrides SHALL include all five entries from `go-architecture.md`:
+`sqlc.yaml` SHALL configure the `postgresql` engine, point at `db/queries/` for queries and `db/migrations/` for schema, and output to `internal/repository/`. Type overrides SHALL include all five entries from `go-architecture.md`:
 - `uuid` → `github.com/google/uuid.UUID`
 - nullable `uuid` → `github.com/google/uuid.NullUUID`
 - `jsonb` → `encoding/json.RawMessage`
@@ -156,9 +152,9 @@ All emit flags SHALL be `true`: `emit_json_tags`, `emit_pointers_for_null_types`
 
 ---
 
-## Requirement: pkg/crypto — encrypt/decrypt with key rotation
+### Requirement: pkg/crypto — encrypt/decrypt with key rotation
 
-**R7** — `pkg/crypto` SHALL provide:
+`pkg/crypto` SHALL provide:
 ```go
 func Encrypt(plaintext string, secret string) (string, error)
 func Decrypt(ciphertext string, secrets []string) (string, error)
@@ -184,9 +180,9 @@ func Decrypt(ciphertext string, secrets []string) (string, error)
 
 ---
 
-## Requirement: pkg/signing — itsdangerous-compatible HMAC
+### Requirement: pkg/signing — itsdangerous-compatible HMAC
 
-**R8** — `pkg/signing` SHALL provide:
+`pkg/signing` SHALL provide:
 ```go
 func Sign(payload string, secret string, salt string) (string, error)
 func Unsign(token string, secrets []string, salt string) (string, error)
@@ -214,9 +210,9 @@ Tokens produced by `Sign`/`Dumps` SHALL be verifiable by Python's `itsdangerous.
 
 ---
 
-## Requirement: SQS Consumer abstraction
+### Requirement: SQS Consumer abstraction
 
-**R9** — `queue/consumer.go` SHALL define an interface and implementation for SQS long-polling:
+`queue/consumer.go` SHALL define an interface and implementation for SQS long-polling:
 
 ```go
 type Consumer interface {
@@ -243,9 +239,9 @@ On handler success: call `DeleteMessage`. On transient error: extend visibility 
 
 ---
 
-## Requirement: SQS Producer abstraction
+### Requirement: SQS Producer abstraction
 
-**R10** — `queue/producer.go` SHALL define:
+`queue/producer.go` SHALL define:
 
 ```go
 type Producer interface {
@@ -264,9 +260,9 @@ type Producer interface {
 
 ---
 
-## Requirement: WorkerManager stub
+### Requirement: WorkerManager stub
 
-**R11** — `internal/worker/manager.go` SHALL provide a compilable `WorkerManager` struct with `NewWorkerManager`, `Start(ctx context.Context) error`, and `Stop()` methods. `Start` SHALL return `nil` immediately (no goroutines launched). `cmd/worker/main.go` SHALL instantiate `WorkerManager`, call `Start`, and block until SIGTERM/SIGINT.
+`internal/worker/manager.go` SHALL provide a compilable `WorkerManager` struct with `NewWorkerManager`, `Start(ctx context.Context) error`, and `Stop()` methods. `Start` SHALL return `nil` immediately (no goroutines launched). `cmd/worker/main.go` SHALL instantiate `WorkerManager`, call `Start`, and block until SIGTERM/SIGINT.
 
 #### Scenario: cmd/worker compiles and starts
 - **WHEN** `go build ./cmd/worker` is run
@@ -278,9 +274,9 @@ type Producer interface {
 
 ---
 
-## Requirement: HTTP error response format
+### Requirement: HTTP error response format
 
-**R12** — `internal/handler/errors.go` SHALL define sentinel types for the two wire error formats. The admin API (non-/v2/ routes) uses `{"result": "error", "message": ...}`. The public v2 API (/v2/ routes) uses `{"status_code": N, "errors": [...]}`.
+`internal/handler/errors.go` SHALL define sentinel types for the two wire error formats. The admin API (non-/v2/ routes) uses `{"result": "error", "message": ...}`. The public v2 API (/v2/ routes) uses `{"status_code": N, "errors": [...]}`.
 
 ```go
 type APIError struct {
@@ -306,9 +302,9 @@ Standard status code mapping:
 
 ---
 
-## Requirement: Makefile targets
+### Requirement: Makefile targets
 
-**R13** — A `Makefile` at the repository root SHALL provide the following targets:
+A `Makefile` at the repository root SHALL provide the following targets:
 
 | Target | Command |
 |---|---|
@@ -329,9 +325,9 @@ Standard status code mapping:
 
 ---
 
-## Requirement: Seed migration derived from spec/out.sql
+### Requirement: Seed migration derived from spec/out.sql
 
-**R14** — `db/migrations/0001_initial.sql` SHALL create all 68 tables, all PostgreSQL ENUM types, all indexes, all foreign key constraints, and all check constraints as defined in `spec/out.sql`. No application logic or seed data is included in this migration.
+`db/migrations/0001_initial.sql` SHALL create all 68 tables, all PostgreSQL ENUM types, all indexes, all foreign key constraints, and all check constraints as defined in `spec/out.sql`. No application logic or seed data is included in this migration.
 
 #### Scenario: Seed migration applies cleanly to an empty database
 - **WHEN** `migrate -path db/migrations -database "$DB_URL" up` is run against a fresh PostgreSQL database
@@ -343,9 +339,9 @@ Standard status code mapping:
 
 ---
 
-## Requirement: No domain logic or auth in this change
+### Requirement: No domain logic or auth in this change
 
-**R15** — This change SHALL NOT implement any domain-specific handler, service, repository, or business rule. It SHALL NOT implement any authentication or authorization middleware.
+This change SHALL NOT implement any domain-specific handler, service, repository, or business rule. It SHALL NOT implement any authentication or authorization middleware.
 
 #### Scenario: All /v2/ and /service/ routes are absent
 - **WHEN** `GET /v2/notifications` is called against the running server

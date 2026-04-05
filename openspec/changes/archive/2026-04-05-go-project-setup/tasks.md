@@ -20,7 +20,7 @@
 - [x] 4.3 Write cross-language compatibility test using a fixture token signed by the Python library: `Unsign(pythonToken, []string{secret}, salt)` must return original payload without error
 
 ## 5. Seed migration
-- [ ] 5.1 Create `db/migrations/0001_initial.sql` by converting `spec/out.sql` into a golang-migrate–compatible migration file: remove `pg_dump` headers/comments, keep all `CREATE TYPE`, `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE ADD CONSTRAINT` statements; verify the file applies cleanly to an empty PostgreSQL database using `make migrate-up`
+- [x] 5.1 Create `db/migrations/0001_initial.sql` by converting `spec/out.sql` into a golang-migrate–compatible migration file: remove `pg_dump` headers/comments, keep all `CREATE TYPE`, `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE ADD CONSTRAINT` statements; verify the file applies cleanly to an empty PostgreSQL database using `make migrate-up`
 
 ## 6. sqlc configuration
 - [x] 6.1 Create `sqlc.yaml` with `version: "2"`, `engine: "postgresql"`, `queries: "db/queries/"`, `schema: "db/migrations/"`, `out: "internal/repository/"`, all 5 type overrides, and all 4 emit flags set to `true`
