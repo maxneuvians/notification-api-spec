@@ -27,6 +27,10 @@ func main() {
 	}
 	defer db.Close()
 
+	// Worker flows currently stay on the writer handle because they mutate state or
+	// depend on write-after-read consistency. Add a separate reader only for future
+	// explicitly eventual-consistent reporting paths.
+
 	if err := internalmigrate.Run(db, cfg.DatabaseURI); err != nil {
 		log.Fatalf("run migrations: %v", err)
 	}

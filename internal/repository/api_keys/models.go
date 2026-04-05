@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package repository
+package api_keys
 
 import (
 	"database/sql"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 type InvitedUsersStatusTypes string
@@ -757,33 +756,33 @@ type AnnualLimitsDatum struct {
 }
 
 type ApiKey struct {
-	ID                 uuid.UUID             `json:"id"`
-	Name               string                `json:"name"`
-	Secret             string                `json:"secret"`
-	ServiceID          uuid.UUID             `json:"service_id"`
-	ExpiryDate         sql.NullTime          `json:"expiry_date"`
-	CreatedAt          time.Time             `json:"created_at"`
-	CreatedByID        uuid.UUID             `json:"created_by_id"`
-	UpdatedAt          sql.NullTime          `json:"updated_at"`
-	Version            int32                 `json:"version"`
-	KeyType            string                `json:"key_type"`
-	CompromisedKeyInfo pqtype.NullRawMessage `json:"compromised_key_info"`
-	LastUsedTimestamp  sql.NullTime          `json:"last_used_timestamp"`
+	ID                 uuid.UUID       `json:"id"`
+	Name               string          `json:"name"`
+	Secret             string          `json:"secret"`
+	ServiceID          uuid.UUID       `json:"service_id"`
+	ExpiryDate         sql.NullTime    `json:"expiry_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	CreatedByID        uuid.UUID       `json:"created_by_id"`
+	UpdatedAt          sql.NullTime    `json:"updated_at"`
+	Version            int32           `json:"version"`
+	KeyType            string          `json:"key_type"`
+	CompromisedKeyInfo json.RawMessage `json:"compromised_key_info"`
+	LastUsedTimestamp  sql.NullTime    `json:"last_used_timestamp"`
 }
 
 type ApiKeysHistory struct {
-	ID                 uuid.UUID             `json:"id"`
-	Name               string                `json:"name"`
-	Secret             string                `json:"secret"`
-	ServiceID          uuid.UUID             `json:"service_id"`
-	ExpiryDate         sql.NullTime          `json:"expiry_date"`
-	CreatedAt          time.Time             `json:"created_at"`
-	UpdatedAt          sql.NullTime          `json:"updated_at"`
-	CreatedByID        uuid.UUID             `json:"created_by_id"`
-	Version            int32                 `json:"version"`
-	KeyType            string                `json:"key_type"`
-	CompromisedKeyInfo pqtype.NullRawMessage `json:"compromised_key_info"`
-	LastUsedTimestamp  sql.NullTime          `json:"last_used_timestamp"`
+	ID                 uuid.UUID       `json:"id"`
+	Name               string          `json:"name"`
+	Secret             string          `json:"secret"`
+	ServiceID          uuid.UUID       `json:"service_id"`
+	ExpiryDate         sql.NullTime    `json:"expiry_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          sql.NullTime    `json:"updated_at"`
+	CreatedByID        uuid.UUID       `json:"created_by_id"`
+	Version            int32           `json:"version"`
+	KeyType            string          `json:"key_type"`
+	CompromisedKeyInfo json.RawMessage `json:"compromised_key_info"`
+	LastUsedTimestamp  sql.NullTime    `json:"last_used_timestamp"`
 }
 
 type AuthType struct {
@@ -1469,25 +1468,25 @@ type TemplatesHistory struct {
 }
 
 type User struct {
-	ID                    uuid.UUID             `json:"id"`
-	Name                  string                `json:"name"`
-	EmailAddress          string                `json:"email_address"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             sql.NullTime          `json:"updated_at"`
-	Password              string                `json:"_password"`
-	MobileNumber          sql.NullString        `json:"mobile_number"`
-	PasswordChangedAt     time.Time             `json:"password_changed_at"`
-	LoggedInAt            sql.NullTime          `json:"logged_in_at"`
-	FailedLoginCount      int32                 `json:"failed_login_count"`
-	State                 string                `json:"state"`
-	PlatformAdmin         bool                  `json:"platform_admin"`
-	CurrentSessionID      uuid.NullUUID         `json:"current_session_id"`
-	AuthType              string                `json:"auth_type"`
-	Blocked               bool                  `json:"blocked"`
-	AdditionalInformation pqtype.NullRawMessage `json:"additional_information"`
-	PasswordExpired       bool                  `json:"password_expired"`
-	VerifiedPhonenumber   sql.NullBool          `json:"verified_phonenumber"`
-	DefaultEditorIsRte    bool                  `json:"default_editor_is_rte"`
+	ID                    uuid.UUID       `json:"id"`
+	Name                  string          `json:"name"`
+	EmailAddress          string          `json:"email_address"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             sql.NullTime    `json:"updated_at"`
+	Password              string          `json:"_password"`
+	MobileNumber          sql.NullString  `json:"mobile_number"`
+	PasswordChangedAt     time.Time       `json:"password_changed_at"`
+	LoggedInAt            sql.NullTime    `json:"logged_in_at"`
+	FailedLoginCount      int32           `json:"failed_login_count"`
+	State                 string          `json:"state"`
+	PlatformAdmin         bool            `json:"platform_admin"`
+	CurrentSessionID      uuid.NullUUID   `json:"current_session_id"`
+	AuthType              string          `json:"auth_type"`
+	Blocked               bool            `json:"blocked"`
+	AdditionalInformation json.RawMessage `json:"additional_information"`
+	PasswordExpired       bool            `json:"password_expired"`
+	VerifiedPhonenumber   sql.NullBool    `json:"verified_phonenumber"`
+	DefaultEditorIsRte    bool            `json:"default_editor_is_rte"`
 }
 
 type UserFolderPermission struct {

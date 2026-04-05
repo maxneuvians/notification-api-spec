@@ -1,12 +1,12 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "db/queries/"
+    queries: "db/queries/notifications.sql"
     schema: "db/migrations/"
     gen:
       go:
-        package: "repository"
-        out: "internal/repository"
+        package: "notifications"
+        out: "internal/repository/notifications"
         emit_json_tags: true
         emit_pointers_for_null_types: true
         emit_enum_valid_method: true
@@ -19,8 +19,292 @@ sql:
             go_type: "github.com/google/uuid.NullUUID"
           - db_type: "jsonb"
             go_type: "encoding/json.RawMessage"
-          - db_type: "pg_catalog.timestamptz"
-            go_type: "time.Time"
-          - db_type: "pg_catalog.timestamptz"
+          - db_type: "jsonb"
             nullable: true
-            go_type: "*time.Time"
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/services.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "services"
+        out: "internal/repository/services"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/api_keys.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "api_keys"
+        out: "internal/repository/api_keys"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/templates.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "templates"
+        out: "internal/repository/templates"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/template_categories.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "template_categories"
+        out: "internal/repository/template_categories"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/jobs.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "jobs"
+        out: "internal/repository/jobs"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/billing.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "billing"
+        out: "internal/repository/billing"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/annual_limits.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "annual_limits"
+        out: "internal/repository/annual_limits"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/users.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "users"
+        out: "internal/repository/users"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/organisations.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "organisations"
+        out: "internal/repository/organisations"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/inbound_sms.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "inbound"
+        out: "internal/repository/inbound"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/providers.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "providers"
+        out: "internal/repository/providers"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/complaints.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "complaints"
+        out: "internal/repository/complaints"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"
+  - engine: "postgresql"
+    queries: "db/queries/reports.sql"
+    schema: "db/migrations/"
+    gen:
+      go:
+        package: "reports"
+        out: "internal/repository/reports"
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_enum_valid_method: true
+        emit_all_enum_values: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "encoding/json.RawMessage"

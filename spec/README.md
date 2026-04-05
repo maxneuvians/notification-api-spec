@@ -142,6 +142,12 @@ If you are implementing the Go rewrite, read in this order:
 
 ## Notable Constraints and Gotchas
 
+## Code Review Checklist
+
+- For every service-layer mutating function on a versioned entity (`services`, `api_keys`, `templates`, `provider_details`, `service_callback_api`, `service_inbound_api`), confirm the matching `InsertXxxHistory` call happens inside the same transaction.
+- For all 8 encrypted columns, verify the service layer calls `crypto.Encrypt` before repository writes and `crypto.Decrypt` after repository reads: `notifications._personalisation`, `notifications.to`, `notifications.normalised_to`, `inbound_sms.content`, `service_callback_api.bearer_token`, `service_inbound_api.bearer_token`, `verify_codes._code`, `users._password`.
+- Confirm auth-path repository lookups use the reader DB handle when available, specifically `GetServiceByIDWithAPIKeys` and `GetAPIKeyBySecret`.
+
 - **Wire format compatibility**: The Go API must preserve exact JSON field names and error response shapes. Admin errors use `{"result":"error","message":...}`; v2 errors use `{"status_code":N,"errors":[{"error":"...","message":"..."}]}`. See `go-architecture.md` § HTTP Error Response Format.
 - **Encryption**: Five columns are encrypted at rest (`_personalisation`, `_password`, `_code`, `bearer_token` ×2). sqlc returns them as `[]byte`. Decrypt in the service layer via `pkg/crypto`. Key rotation: `SECRET_KEY` is a list; encrypt with `[0]`, decrypt by trying all. See `data-model.md` and `business-rules/users-auth.md`.
 - **History tables**: Every UPDATE to a versioned entity (`services`, `templates`, `api_keys`, `provider_details`, `service_callback_api`, `service_inbound_api`) must also insert into its `*_history` table within the same transaction. This was automatic in Python via SQLAlchemy event hooks; in Go it is explicit in the service layer.

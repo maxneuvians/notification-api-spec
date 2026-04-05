@@ -31,13 +31,18 @@ func main() {
 	}
 	defer writerDB.Close()
 
+	// Default to the writer and override with a read replica when one is configured.
+	// Auth-path repository lookups such as services.GetServiceByIDWithAPIKeys and
+	// api_keys.GetAPIKeyBySecret should receive readerDB, while all writes stay on writerDB.
+	readerDB := writerDB
 	if cfg.DatabaseReaderURI != "" {
-		readerDB, err := openDB(cfg.DatabaseReaderURI, cfg.DBPoolSize)
+		readerDB, err = openDB(cfg.DatabaseReaderURI, cfg.DBPoolSize)
 		if err != nil {
 			log.Fatalf("open reader database: %v", err)
 		}
 		defer readerDB.Close()
 	}
+	_ = readerDB
 
 	if err := internalmigrate.Run(writerDB, cfg.DatabaseURI); err != nil {
 		log.Fatalf("run migrations: %v", err)
