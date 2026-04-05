@@ -22,7 +22,7 @@ The devcontainer stack SHALL run a PostgreSQL 15 service accessible from the app
 
 #### Scenario: Database reachable from app container
 - **WHEN** the devcontainer stack is running
-- **THEN** `psql $DATABASE_URL -c '\l'` exits 0 from within the app container
+- **THEN** `psql $DATABASE_URI -c '\l'` exits 0 from within the app container
 
 #### Scenario: Data persists across container restarts
 - **WHEN** the app container is stopped and restarted without removing volumes
@@ -44,13 +44,13 @@ The devcontainer SHALL inject the following environment variables into the app c
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | `postgres://postgres:postgres@db:5432/notification_api` |
+| `DATABASE_URI` | `postgres://postgres:postgres@db:5432/notification_api` |
 | `REDIS_URL` | `redis://redis:6379` |
 | `NOTIFY_ENVIRONMENT` | `development` |
 
-#### Scenario: DATABASE_URL set inside container
+#### Scenario: DATABASE_URI set inside container
 - **WHEN** the devcontainer starts
-- **THEN** `echo $DATABASE_URL` prints the postgres connection string pointing to `db:5432`
+- **THEN** `echo $DATABASE_URI` prints the postgres connection string pointing to `db:5432`
 
 #### Scenario: No .env file required
 - **WHEN** the repository is cloned fresh and opened in the devcontainer

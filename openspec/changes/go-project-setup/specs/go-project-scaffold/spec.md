@@ -27,18 +27,18 @@ Project layout, Go module, config system, chi router with health endpoints, midd
 
 **R2** — `internal/config/config.go` SHALL define a flat `Config` struct. All fields SHALL be populated from environment variables. A `Load()` function SHALL return an error listing all missing required variables.
 
-Required variables include at minimum: `SQLALCHEMY_DATABASE_URI`, `ADMIN_CLIENT_SECRET`, `SECRET_KEY`, `DANGEROUS_SALT`.
+Required variables include at minimum: `DATABASE_URI`, `ADMIN_CLIENT_SECRET`, `SECRET_KEY`, `DANGEROUS_SALT`.
 
 Optional variables have documented defaults (see brief.md for complete list).
 
 Well-known internal UUIDs (`NotifyServiceID`, `HeartbeatServiceID`, etc.) and `APIKeyPrefix` (`"gcntfy-"`) SHALL be hardcoded constants, not configurable.
 
 #### Scenario: Missing required variable causes fast exit
-- **WHEN** a required environment variable (e.g. `SQLALCHEMY_DATABASE_URI`) is absent at startup
+- **WHEN** a required environment variable (e.g. `DATABASE_URI`) is absent at startup
 - **THEN** `Config.Load()` returns an error containing the variable name; the process exits with non-zero status before binding any port
 
 #### Scenario: Optional variable uses documented default
-- **WHEN** an optional environment variable (e.g. `SQLALCHEMY_POOL_SIZE`) is absent
+- **WHEN** an optional environment variable (e.g. `POOL_SIZE`) is absent
 - **THEN** `Config.Load()` succeeds and the field is set to its default value (5)
 
 #### Scenario: Config struct has no global state

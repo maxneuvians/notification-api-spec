@@ -139,9 +139,9 @@ These endpoints MUST respond even when the DB is unreachable (liveness, not read
 ### Database
 | Go field | Env var | Type | Default |
 |---|---|---|---|
-| `DatabaseURI` | `SQLALCHEMY_DATABASE_URI` | `string` | required |
-| `DatabaseReaderURI` | `SQLALCHEMY_DATABASE_READER_URI` | `string` | optional |
-| `DBPoolSize` | `SQLALCHEMY_POOL_SIZE` | `int` | 5 |
+| `DatabaseURI` | `DATABASE_URI` | `string` | required |
+| `DatabaseReaderURI` | `DATABASE_READER_URI` | `string` | optional |
+| `DBPoolSize` | `POOL_SIZE` | `int` | 5 |
 
 ### Redis
 | Go field | Env var | Default |
@@ -260,7 +260,7 @@ const (
 - **Library**: `github.com/golang-migrate/migrate/v4` with `postgres` driver
 - **Migration directory**: `db/migrations/`
 - **Seed migration**: `db/migrations/0001_initial.sql` derived from `spec/out.sql`
-- **CLI usage**: `migrate -path db/migrations -database "$SQLALCHEMY_DATABASE_URI" up`
+- **CLI usage**: `migrate -path db/migrations -database "$DATABASE_URI" up`
 - **Startup behaviour**: Both `cmd/api/main.go` and `cmd/worker/main.go` call `runMigrations(db)` before any port binding or queue consumption. If the migration fails, the process logs the error and exits with non-zero status.
 - **Already-current database**: `runMigrations` is idempotent — already-applied migrations are skipped without error.
 

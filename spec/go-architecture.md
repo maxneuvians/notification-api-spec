@@ -324,7 +324,7 @@ For **history tables** (`api_keys_history`, `services_history`, `templates_histo
 - Migration directory: `db/migrations/`
 - Seed migration: `db/migrations/0001_initial.sql` is derived from `specs/out.sql`.
 - Subsequent schema changes are added as sequentially numbered files (`0002_...sql`, `0003_...sql`).
-- CLI usage: `migrate -path db/migrations -database "$SQLALCHEMY_DATABASE_URI" up`
+- CLI usage: `migrate -path db/migrations -database "$DATABASE_URI" up`
 - Go library usage: on application startup the `cmd/api/main.go` and `cmd/worker/main.go` entry points call `runMigrations(db)` before accepting traffic. The function uses `github.com/golang-migrate/migrate/v4` with the `postgres` driver.
 
 ### Repository Package Structure
@@ -778,9 +778,9 @@ All configuration is loaded at startup into a single flat `Config` struct in `in
 ### Database
 | Go field | Env var | Type | Notes |
 |---|---|---|---|
-| `DatabaseURI` | `SQLALCHEMY_DATABASE_URI` | `string` | Primary writer DSN |
-| `DatabaseReaderURI` | `SQLALCHEMY_DATABASE_READER_URI` | `string` | Optional read replica DSN |
-| `DBPoolSize` | `SQLALCHEMY_POOL_SIZE` | `int` | Default 5 |
+| `DatabaseURI` | `DATABASE_URI` | `string` | Primary writer DSN |
+| `DatabaseReaderURI` | `DATABASE_READER_URI` | `string` | Optional read replica DSN |
+| `DBPoolSize` | `POOL_SIZE` | `int` | Default 5 |
 | `DBPoolRecycle` | — | `time.Duration` | Default 300 s |
 
 ### Redis

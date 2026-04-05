@@ -11,12 +11,12 @@
 ## 3. devcontainer.json
 
 - [x] 3.1 Create `.devcontainer/devcontainer.json` — reference `docker-compose.yml`, set `service: app` and `workspaceFolder: /workspaces/${localWorkspaceFolderBasename}`
-- [x] 3.2 Add `remoteEnv` block: `DATABASE_URL`, `REDIS_URL`, `NOTIFY_ENVIRONMENT=development`
+- [x] 3.2 Add `remoteEnv` block: `DATABASE_URI`, `REDIS_URL`, `NOTIFY_ENVIRONMENT=development`
 - [x] 3.3 Add `customizations.vscode.extensions` list: `golang.go`, `golang.go-nightly` (optional), `ms-azuretools.vscode-docker`, `mtxr.sqltools`, `mtxr.sqltools-driver-pg`
 - [x] 3.4 Add `postCreateCommand` to run `go mod download` so module cache is warm after container build
 
 ## 4. Validation
 
 - [x] 4.1 Open repo in devcontainer; confirm `go version`, `air -v`, `sqlc version`, `golang-migrate -version`, `golangci-lint --version` all succeed
-- [x] 4.2 Confirm `psql $DATABASE_URL -c '\l'` exits 0 and `redis-cli -h redis ping` returns `PONG`
+- [x] 4.2 Confirm `psql $DATABASE_URI -c '\l'` exits 0 and `redis-cli -h redis ping` returns `PONG`
 - [x] 4.3 Confirm `go build ./...` succeeds from `/workspaces/...` inside the container

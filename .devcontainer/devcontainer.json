@@ -4,7 +4,7 @@
     "service": "app",
     "workspaceFolder": "/workspaces",
     "remoteEnv": {
-        "DATABASE_URL": "postgres://postgres:postgres@db:5432/notification_api",
+        "DATABASE_URI": "postgres://postgres:postgres@db:5432/notification_api",
         "REDIS_URL": "redis://redis:6379",
         "NOTIFY_ENVIRONMENT": "development"
     },

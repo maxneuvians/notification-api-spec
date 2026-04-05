@@ -513,7 +513,7 @@ Default list queries MUST filter out soft-deleted records. An explicit `IncludeA
 - Directory: `db/migrations/`
 - Seed file: `db/migrations/0001_initial.sql` (derived from `spec/out.sql`)
 - Subsequent schema changes: `0002_...sql`, `0003_...sql`, etc.
-- CLI: `migrate -path db/migrations -database "$SQLALCHEMY_DATABASE_URI" up`
+- CLI: `migrate -path db/migrations -database "$DATABASE_URI" up`
 - In-process: `github.com/golang-migrate/migrate/v4` with postgres driver; called on startup
 
 ---

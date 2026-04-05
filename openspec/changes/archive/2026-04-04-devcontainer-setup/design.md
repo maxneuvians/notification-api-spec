@@ -37,7 +37,7 @@ Using the official Microsoft Go devcontainer base keeps VSCode remote-container 
 ### Environment variables via devcontainer.json `remoteEnv`
 Local connection strings are injected through `remoteEnv` in `devcontainer.json` rather than a checked-in `.env` file, avoiding accidental credential leakage. Values reference Docker Compose service hostnames:
 ```
-DATABASE_URL=postgres://postgres:postgres@db:5432/notification_api
+DATABASE_URI=postgres://postgres:postgres@db:5432/notification_api
 REDIS_URL=redis://redis:6379
 ```
 All other config env vars default to development-safe values (test keys, local hostnames, `NOTIFY_ENVIRONMENT=development`).

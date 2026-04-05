@@ -480,8 +480,8 @@ Note: `CREATE_LETTERS_PDF` and `LETTERS` are commented out and not included in `
 | email | `bulk` | `SEND_EMAIL_LOW` |
 
 #### SQLAlchemy Pool
-- `SQLALCHEMY_DISABLE_POOL=true` (env var) → `poolclass=NullPool`; `SQLALCHEMY_POOL_SIZE=None`, `SQLALCHEMY_POOL_TIMEOUT=None`, `SQLALCHEMY_ENGINE_OPTIONS` contains `poolclass`
-- Default (env var absent): `SQLALCHEMY_DISABLE_POOL=False`, `SQLALCHEMY_ENGINE_OPTIONS={}`
+- `DISABLE_POOL=true` (env var) → `poolclass=NullPool`; `POOL_SIZE=None`, `POOL_TIMEOUT=None`, `ENGINE_OPTIONS` contains `poolclass`
+- Default (env var absent): `DISABLE_POOL=False`, `ENGINE_OPTIONS={}`
 
 #### Safe/Sensitive Config
 - `Config.get_safe_config()` calls `get_class_attrs` and `get_sensitive_config`
