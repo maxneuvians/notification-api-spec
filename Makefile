@@ -1,10 +1,13 @@
-.PHONY: build test lint sqlc migrate-up migrate-down
+.PHONY: build test coverage lint sqlc migrate-up migrate-down
 
 build:
 	go build ./cmd/api ./cmd/worker
 
 test:
 	go test ./...
+
+coverage:
+	bash scripts/coverage.sh
 
 lint:
 	golangci-lint run
