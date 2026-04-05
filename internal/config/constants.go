@@ -11,6 +11,11 @@ const (
 
 	APIKeyPrefix = "gcntfy-"
 
+	KeyTypeTest              = "test"
+	InternalTestNumber       = "+16135550123"
+	ExternalTestNumber       = "+16135550124"
+	InternalTestEmailAddress = "internal.test@cds-snc.ca"
+
 	InvitationEmailTemplateID           = "4f46df42-f795-4cc4-83bb-65ca312f49cc"
 	SMSCodeTemplateID                   = "36fb0730-6259-4da1-8a80-c8de22ad4246"
 	NoReplyTemplateID                   = "86950840-6da4-4865-841b-16028110e980"

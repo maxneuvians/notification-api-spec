@@ -18,10 +18,12 @@ import (
 
 	"github.com/maxneuvians/notification-api-spec/internal/config"
 	apphandler "github.com/maxneuvians/notification-api-spec/internal/handler"
+	providerhandler "github.com/maxneuvians/notification-api-spec/internal/handler/providers"
 	statushandler "github.com/maxneuvians/notification-api-spec/internal/handler/status"
 	appmiddleware "github.com/maxneuvians/notification-api-spec/internal/middleware"
 	internalmigrate "github.com/maxneuvians/notification-api-spec/internal/migrate"
 	apiKeysRepo "github.com/maxneuvians/notification-api-spec/internal/repository/api_keys"
+	providersRepo "github.com/maxneuvians/notification-api-spec/internal/repository/providers"
 	servicesRepo "github.com/maxneuvians/notification-api-spec/internal/repository/services"
 	serviceauth "github.com/maxneuvians/notification-api-spec/internal/service/auth"
 )
@@ -99,7 +101,10 @@ func run() error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	server := newAPIServer(listenAddr(cfg.Port), newRouter(cfg, newAPILogger(), authCache, authRepo))
+	providerReader := providersRepo.New(readerDB)
+	providerWriter := providersRepo.New(writerDB)
+
+	server := newAPIServer(listenAddr(cfg.Port), newRouter(cfg, newAPILogger(), authCache, authRepo, providerReader, providerWriter))
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
 	}
@@ -132,7 +137,28 @@ func (r *serviceAuthRepository) GetAPIKeyBySecret(ctx context.Context, secret st
 	return r.apiKeys.GetAPIKeyBySecret(ctx, secret)
 }
 
-func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.ServiceAuthCache, authRepo appmiddleware.ServiceAuthRepository) http.Handler {
+type providerAdminRepository struct {
+	reader *providersRepo.Queries
+	writer *providersRepo.Queries
+}
+
+func (r *providerAdminRepository) GetDaoProviderStats(ctx context.Context) ([]providersRepo.ProviderDetailStat, error) {
+	return r.reader.GetDaoProviderStats(ctx)
+}
+
+func (r *providerAdminRepository) GetProviderStatByID(ctx context.Context, id uuid.UUID) (providersRepo.ProviderDetailStat, error) {
+	return r.reader.GetProviderStatByID(ctx, id)
+}
+
+func (r *providerAdminRepository) GetProviderVersions(ctx context.Context, id uuid.UUID) ([]providersRepo.ProviderDetailsHistory, error) {
+	return r.reader.GetProviderVersions(ctx, id)
+}
+
+func (r *providerAdminRepository) UpdateProviderDetails(ctx context.Context, arg providersRepo.UpdateProviderDetailsParams) (providersRepo.ProviderDetail, error) {
+	return r.writer.UpdateProviderDetails(ctx, arg)
+}
+
+func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.ServiceAuthCache, authRepo appmiddleware.ServiceAuthRepository, providerReader *providersRepo.Queries, providerWriter *providersRepo.Queries) http.Handler {
 	r := chi.NewRouter()
 	r.Use(appmiddleware.RequestID)
 	r.Use(appmiddleware.OTEL(cfg.FFEnableOtel))
@@ -149,6 +175,14 @@ func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.S
 		r.Use(appmiddleware.RequireAdminAuth(*cfg))
 		r.Get("/ping", okHandler)
 	})
+
+	if providerReader != nil && providerWriter != nil {
+		providerRoutes := providerhandler.NewHandler(&providerAdminRepository{reader: providerReader, writer: providerWriter}, &providerAdminRepository{reader: providerReader, writer: providerWriter})
+		r.Route("/provider-details", func(r chi.Router) {
+			r.Use(appmiddleware.RequireAdminAuth(*cfg))
+			providerRoutes.RegisterRoutes(r)
+		})
+	}
 
 	r.Route("/sre-tools", func(r chi.Router) {
 		r.Use(appmiddleware.RequireSREAuth(*cfg))

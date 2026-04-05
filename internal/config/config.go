@@ -57,6 +57,7 @@ type Config struct {
 	CeleryDeliverSMSRateLimit   string        `env:"CELERY_DELIVER_SMS_RATE_LIMIT" envDefault:"1/s"`
 	BatchInsertionChunkSize     int           `env:"BATCH_INSERTION_CHUNK_SIZE" envDefault:"500"`
 	SMSWorkerConcurrency        int           `env:"CELERY_CONCURRENCY" envDefault:"4"`
+	WorkerShutdownTimeout       time.Duration `env:"WORKER_SHUTDOWN_TIMEOUT" envDefault:"5s"`
 	SendingNotificationsTimeout time.Duration `env:"-"`
 
 	AdminBaseURL            string   `env:"ADMIN_BASE_URL" envDefault:"http://localhost:6012"`

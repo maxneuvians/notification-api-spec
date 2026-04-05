@@ -140,12 +140,19 @@ func MustCreateProvider(t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
 
 	id := uuid.New()
+	createdByID := MustCreateUser(t, db)
 	mustExec(t, db, `
 		INSERT INTO provider_details (
 			id, display_name, identifier, priority, notification_type,
-			active, version, supports_international
-		) VALUES ($1, $2, $3, 10, 'sms', false, 1, false)
-	`, id, "Provider "+id.String()[:8], "provider-"+id.String()[:8])
+			active, version, supports_international, created_by_id
+		) VALUES ($1, $2, $3, 10, 'sms', false, 1, false, $4)
+	`, id, "Provider "+id.String()[:8], "provider-"+id.String()[:8], createdByID)
+	mustExec(t, db, `
+		INSERT INTO provider_details_history (
+			id, display_name, identifier, priority, notification_type,
+			active, version, supports_international, created_by_id
+		) VALUES ($1, $2, $3, 10, 'sms', false, 1, false, $4)
+	`, id, "Provider "+id.String()[:8], "provider-"+id.String()[:8], createdByID)
 
 	return id
 }

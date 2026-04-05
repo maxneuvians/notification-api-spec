@@ -162,7 +162,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 	}
 
 	t.Run("status route is public", func(t *testing.T) {
-		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo))
+		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo, nil, nil))
 		defer server.Close()
 
 		res, err := http.Get(server.URL + "/_status")
@@ -177,7 +177,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 	})
 
 	t.Run("version route is public", func(t *testing.T) {
-		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo))
+		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo, nil, nil))
 		defer server.Close()
 
 		res, err := http.Get(server.URL + "/version")
@@ -192,7 +192,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 	})
 
 	t.Run("no auth header rejected for protected routes", func(t *testing.T) {
-		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo))
+		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo, nil, nil))
 		defer server.Close()
 
 		cases := []struct {
@@ -219,7 +219,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 	})
 
 	t.Run("valid token of correct type passes", func(t *testing.T) {
-		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo))
+		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo, nil, nil))
 		defer server.Close()
 
 		cases := []struct {
@@ -253,7 +253,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 	})
 
 	t.Run("cross issuer token on sre route returns 401", func(t *testing.T) {
-		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo))
+		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo, nil, nil))
 		defer server.Close()
 
 		req, err := http.NewRequest(http.MethodGet, server.URL+"/sre-tools/ping", nil)
@@ -276,7 +276,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 	t.Run("production cypress guard returns 403", func(t *testing.T) {
 		prodCfg := *cfg
 		prodCfg.NotifyEnvironment = "production"
-		server := httptest.NewServer(newRouter(&prodCfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo))
+		server := httptest.NewServer(newRouter(&prodCfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, authRepo, nil, nil))
 		defer server.Close()
 
 		req, err := http.NewRequest(http.MethodGet, server.URL+"/cypress/ping", nil)
@@ -300,7 +300,7 @@ func TestNewRouterAuthGroups(t *testing.T) {
 		store := &serviceAuthTestStore{values: map[string]string{}}
 		cache := serviceauth.NewServiceAuthCache(store)
 		cache.Set(context.Background(), serviceID, &serviceauth.CachedServiceAuth{Service: authRepo.service, Permissions: authRepo.permissions, APIKeys: authRepo.apiKeys}, time.Minute)
-		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), cache, authRepo))
+		server := httptest.NewServer(newRouter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), cache, authRepo, nil, nil))
 		defer server.Close()
 
 		req, err := http.NewRequest(http.MethodGet, server.URL+"/v2/ping", nil)
