@@ -54,6 +54,7 @@ type Config struct {
 	GCOrganisationsFilename  string   `env:"GC_ORGANISATIONS_FILENAME" envDefault:"all.json"`
 
 	NotificationQueuePrefix     string        `env:"NOTIFICATION_QUEUE_PREFIX"`
+	PlatformFromNumber          string        `env:"FROM_NUMBER"`
 	CeleryDeliverSMSRateLimit   string        `env:"CELERY_DELIVER_SMS_RATE_LIMIT" envDefault:"1/s"`
 	BatchInsertionChunkSize     int           `env:"BATCH_INSERTION_CHUNK_SIZE" envDefault:"500"`
 	SMSWorkerConcurrency        int           `env:"CELERY_CONCURRENCY" envDefault:"4"`

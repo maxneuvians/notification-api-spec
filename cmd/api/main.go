@@ -18,7 +18,11 @@ import (
 
 	"github.com/maxneuvians/notification-api-spec/internal/config"
 	apphandler "github.com/maxneuvians/notification-api-spec/internal/handler"
+	apiKeyHandler "github.com/maxneuvians/notification-api-spec/internal/handler/api_key"
 	providerhandler "github.com/maxneuvians/notification-api-spec/internal/handler/providers"
+	serviceHandler "github.com/maxneuvians/notification-api-spec/internal/handler/service"
+	serviceCallbackHandler "github.com/maxneuvians/notification-api-spec/internal/handler/service_callback"
+	serviceContactsHandler "github.com/maxneuvians/notification-api-spec/internal/handler/service_contacts"
 	statushandler "github.com/maxneuvians/notification-api-spec/internal/handler/status"
 	appmiddleware "github.com/maxneuvians/notification-api-spec/internal/middleware"
 	internalmigrate "github.com/maxneuvians/notification-api-spec/internal/migrate"
@@ -53,6 +57,13 @@ type serviceQueryReader interface {
 type apiKeyQueryReader interface {
 	GetAPIKeysByServiceID(ctx context.Context, serviceID uuid.UUID) ([]apiKeysRepo.ApiKey, error)
 	GetAPIKeyBySecret(ctx context.Context, secret string) (apiKeysRepo.ApiKey, error)
+}
+
+type serviceAdminRepository interface {
+	apiKeyHandler.Repository
+	serviceHandler.Repository
+	serviceCallbackHandler.Repository
+	serviceContactsHandler.Repository
 }
 
 func main() {
@@ -103,8 +114,9 @@ func run() error {
 
 	providerReader := providersRepo.New(readerDB)
 	providerWriter := providersRepo.New(writerDB)
+	serviceAdminRepo := servicesRepo.NewRepository(readerDB, writerDB, servicesRepo.WithConfig(cfg))
 
-	server := newAPIServer(listenAddr(cfg.Port), newRouter(cfg, newAPILogger(), authCache, authRepo, providerReader, providerWriter))
+	server := newAPIServer(listenAddr(cfg.Port), newRouter(cfg, newAPILogger(), authCache, authRepo, providerReader, providerWriter, serviceAdminRepo))
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
 	}
@@ -158,7 +170,7 @@ func (r *providerAdminRepository) UpdateProviderDetails(ctx context.Context, arg
 	return r.writer.UpdateProviderDetails(ctx, arg)
 }
 
-func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.ServiceAuthCache, authRepo appmiddleware.ServiceAuthRepository, providerReader *providersRepo.Queries, providerWriter *providersRepo.Queries) http.Handler {
+func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.ServiceAuthCache, authRepo appmiddleware.ServiceAuthRepository, providerReader *providersRepo.Queries, providerWriter *providersRepo.Queries, serviceAdminRepo serviceAdminRepository) http.Handler {
 	r := chi.NewRouter()
 	r.Use(appmiddleware.RequestID)
 	r.Use(appmiddleware.OTEL(cfg.FFEnableOtel))
@@ -202,6 +214,18 @@ func newRouter(cfg *config.Config, logger *slog.Logger, authCache *serviceauth.S
 	r.Route("/v2", func(r chi.Router) {
 		r.Use(appmiddleware.RequireAuth(*cfg, authCache, authRepo))
 		r.Get("/ping", okHandler)
+		if serviceAdminRepo != nil {
+			apiKeyRoutes := apiKeyHandler.NewHandler(serviceAdminRepo)
+			serviceRoutes := serviceHandler.NewHandler(serviceAdminRepo)
+			serviceCallbackRoutes := serviceCallbackHandler.NewHandler(serviceAdminRepo)
+			serviceContactRoutes := serviceContactsHandler.NewHandler(serviceAdminRepo)
+			r.Route("/service", func(r chi.Router) {
+				apiKeyRoutes.RegisterRoutes(r)
+				serviceRoutes.RegisterRoutes(r)
+				serviceCallbackRoutes.RegisterRoutes(r)
+				serviceContactRoutes.RegisterRoutes(r)
+			})
+		}
 	})
 
 	return r
